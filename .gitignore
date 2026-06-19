@@ -1,0 +1,26 @@
+# === Patient data — NEVER commit ===
+*.csv
+*.parquet
+*.json
+*.xlsx
+*.xls
+
+# Generated documents / outputs
+*.docx
+*.pdf
+*.png
+*.jpg
+*.html
+*.ipynb
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
