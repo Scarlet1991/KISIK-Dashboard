@@ -31,6 +31,7 @@ Data to Clinical Impact."*
 ```
 pipeline/    retrospective dataset build, 24h feature engineering & leakage diagnostics
   retrospective_dataset_pipeline.py  build the retrospective ML dataset (kisik2_icu_ml_dataset.parquet) from raw KISIK CSVs
+  prospective_dataset_pipeline.py    build the prospective ML dataset from daily OLD snapshots (run_prospective_pipeline)
   add_24h_features.py      build true first-24h windowed features (labs, vitals, procedures, access)
   check_leakage.py         correlation/column-mapping leakage test
   check_features_24h.py    verify selected features exist in the 24h dataset
