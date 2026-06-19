@@ -93,14 +93,16 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
 
 ## Results at a glance
 
+These are the **leakage-controlled** results from the canonical analysis
+(`modeling/canonical_analysis.py`, the single source of truth for the manuscript).
+
 | Setting | Finding |
 |---------|---------|
-| Leakage check | Whole-stay aggregates inflate apparent fit (R² ≈ 0.61); strict 24 h window removes it. |
-| Retrospective hold-out (n ≈ 3,429) | Best model **XGBoost**: MAE ≈ 2.1 d, R² ≈ 0.57. |
-| Prospective vs. senior physician (n = 359) | **Physician wins overall** (MAE 2.60 vs 3.65 d; R² 0.25 vs −0.20), gap concentrated in long stays. |
-| Long-stayers (> 7 d) | Tweedie (p≈1.3) & discrete hazard cut MAE ~10–12 % and remove the underestimation bias. |
-| Short stays (1–7 d) | Quantile-P50 / hazard-median **beat the physician** (MAE ≈ 1.2 vs 1.4 d). |
-| Capacity planning | P80 quantile is well-calibrated (≈ 77 % coverage) — a "discharged-by day X" bound the point estimate can't give. |
+| Leakage check | Whole-stay aggregates inflate apparent fit (R² ≈ 0.61); a strict 24 h window removes it and gives R² ≈ 0.31. An earlier pipeline had substituted 15 whole-stay features — that leakage is removed here. |
+| Retrospective hold-out (n = 3,429) | All four models near-identical (MAE 2.75–2.94 d; R² 0.23–0.32). Final model by lowest patient-grouped CV-MAE = **Extra Trees** (MAE 2.76 d, R² 0.31); random forest and XGBoost equivalent, Ridge worst. |
+| Prospective vs. senior physician (n = 360) | **Physician wins overall** (MAE 2.60 vs 3.63 d; R² 0.25 vs −0.02 for the final model); all ML models ≈ cohort mean prospectively. |
+| Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). |
+| Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
 
 ---
 
@@ -114,15 +116,23 @@ pipeline/    data pipelines, 24h feature engineering & leakage diagnostics
   check_leakage.py                    leakage diagnostics
   check_features_24h.py               verify selected features exist
 modeling/    model training & evaluation
-  train_los_model_24h.py              train LoS model (log1p) + prospective application
-  oberarzt_vs_ml_extended.py          RF/ExtraTrees/XGBoost/Ridge vs senior physician
+  canonical_analysis.py               SINGLE SOURCE OF TRUTH: leakage-free features, grouped-CV hyperparameter tuning,
+                                      consistent 4-model comparison, model selection, permutation importance, figures
+  train_los_model_24h.py              earlier notebook-extracted training routine (superseded by canonical_analysis.py)
+  oberarzt_vs_ml_extended.py          earlier RF/ExtraTrees/XGBoost/Ridge vs senior comparison
   experiment_op_features.py           OP/anaesthesia features + asymmetric-loss tail model
   quantile_op_prospective.py          quantile (P50/P80) + OP features, prospective head-to-head
   tweedie_hazard.py                   Tweedie/Gamma + discrete-time hazard
 figures/     publication figures (matplotlib, 300 DPI)
-reporting/   Word tables & manuscript draft (python-docx)
+reporting/   TRIPOD+AI manuscript generator (python-docx)
+  build_manuscript_v2.py              builds the manuscript from canonical_analysis.py outputs
 dashboard/   interactive per-day ward dashboard with per-patient SHAP
 ```
+
+> `modeling/canonical_analysis.py` produces all reported metrics, the feature-importance
+> table and the figures; `reporting/build_manuscript_v2.py` then assembles the manuscript.
+> The earlier `modeling/oberarzt_vs_ml_extended.py` contained a leaky feature fallback
+> (whole-stay substitution) and is kept only for provenance — do not cite its numbers.
 
 ---
 
@@ -137,14 +147,13 @@ python pipeline/retrospective_dataset_pipeline.py
 python pipeline/add_24h_features.py
 python pipeline/prospective_dataset_pipeline.py
 python pipeline/check_leakage.py
-# 2) train & evaluate
-python modeling/train_los_model_24h.py
-python modeling/oberarzt_vs_ml_extended.py
+# 2) canonical analysis (source of truth): tuning, model selection, metrics, importance, figures
+python modeling/canonical_analysis.py
+#    optional exploratory analyses
 python modeling/quantile_op_prospective.py
 python modeling/tweedie_hazard.py
-# 3) outputs
-python figures/fig_tweedie_hazard.py
-python reporting/build_frontiers_tables.py
+# 3) manuscript + dashboard
+python reporting/build_manuscript_v2.py
 python dashboard/build_dashboard_data.py
 python dashboard/build_dashboard_html.py
 ```
