@@ -100,7 +100,7 @@ These are the **leakage-controlled** results from the canonical analysis
 |---------|---------|
 | Leakage check | Whole-stay aggregates inflate apparent fit (R² ≈ 0.61); a strict 24 h window removes it and gives R² ≈ 0.31. An earlier pipeline had substituted 15 whole-stay features — that leakage is removed here. |
 | Retrospective hold-out (n = 3,429) | All four models near-identical (MAE 2.75–2.94 d; R² 0.23–0.32). Final model by lowest patient-grouped CV-MAE = **Extra Trees** (MAE 2.76 d, R² 0.31); random forest and XGBoost equivalent, Ridge worst. |
-| Prospective vs. senior physician (n = 360) | **Physician wins overall** (MAE 2.60 vs 3.63 d; R² 0.25 vs −0.02 for the final model); all ML models ≈ cohort mean prospectively. |
+| Prospective vs. senior physician (n = 360) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 78 %). **Physician wins overall** (MAE 2.60 vs 3.61 d; R² 0.25 vs 0.07 for the final model). Models carry modest real signal (R² 0.03–0.10); ridge is unstable under distribution shift. |
 | Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). |
 | Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
 
@@ -118,6 +118,7 @@ pipeline/    data pipelines, 24h feature engineering & leakage diagnostics
 modeling/    model training & evaluation
   canonical_analysis.py               SINGLE SOURCE OF TRUTH: leakage-free features, grouped-CV hyperparameter tuning,
                                       consistent 4-model comparison, model selection, permutation importance, figures
+  prospective_24h_rebuild.py          rebuild genuine first-24h features for the prospective cohort from raw OLD data; fair senior-physician benchmark + coverage report
   train_los_model_24h.py              earlier notebook-extracted training routine (superseded by canonical_analysis.py)
   oberarzt_vs_ml_extended.py          earlier RF/ExtraTrees/XGBoost/Ridge vs senior comparison
   experiment_op_features.py           OP/anaesthesia features + asymmetric-loss tail model
@@ -149,6 +150,8 @@ python pipeline/prospective_dataset_pipeline.py
 python pipeline/check_leakage.py
 # 2) canonical analysis (source of truth): tuning, model selection, metrics, importance, figures
 python modeling/canonical_analysis.py
+#    fair prospective benchmark (rebuilds genuine 24h features for the prospective cohort)
+python modeling/prospective_24h_rebuild.py
 #    optional exploratory analyses
 python modeling/quantile_op_prospective.py
 python modeling/tweedie_hazard.py
