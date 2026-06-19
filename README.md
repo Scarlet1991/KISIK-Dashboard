@@ -29,11 +29,13 @@ Data to Clinical Impact."*
 ## Repository structure
 
 ```
-pipeline/    24h feature engineering & leakage diagnostics
+pipeline/    retrospective dataset build, 24h feature engineering & leakage diagnostics
+  retrospective_dataset_pipeline.py  build the retrospective ML dataset (kisik2_icu_ml_dataset.parquet) from raw KISIK CSVs
   add_24h_features.py      build true first-24h windowed features (labs, vitals, procedures, access)
   check_leakage.py         correlation/column-mapping leakage test
   check_features_24h.py    verify selected features exist in the 24h dataset
 modeling/    model training & evaluation
+  train_los_model_24h.py       train the LoS model on the leakage-free 24h dataset (log1p target) + prospective application
   oberarzt_vs_ml_extended.py   RF/ExtraTrees/XGBoost/Ridge + prospective senior comparison
   experiment_op_features.py    add OP/anaesthesia features + asymmetric-loss tail model
   quantile_op_prospective.py   XGBoost quantile (P50/P80) + OP features, prospective head-to-head
