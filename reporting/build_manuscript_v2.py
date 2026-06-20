@@ -85,20 +85,23 @@ labeled("Background:","Accurate early prediction of intensive care unit (ICU) le
     "information leakage, and models are rarely benchmarked prospectively against the clinicians they are meant to support.")
 labeled("Methods:","Using routine data from a single tertiary ICU service, we developed models to predict ICU LOS "
     "(in days) from information available within the first 24 hours after admission only. The retrospective development "
-    "cohort comprised 17,032 ICU stays (12,414 patients); the split into training and test data and all cross-validation "
-    "folds were grouped by patient. Four candidate models — ridge regression, random forest, extremely randomised trees "
-    "(extra trees) and gradient boosting (XGBoost) — were trained on a log1p-transformed target with identical "
-    "preprocessing; hyperparameters were tuned by 4-fold patient-grouped cross-validation. The single model with the "
-    "lowest cross-validated mean absolute error (MAE) was pre-specified as the final model. The final model was then "
-    "evaluated, unchanged, against prospectively documented senior-physician LOS estimates in an independent cohort "
-    "(360 matched stays).")
+    "cohort comprised 17,032 ICU stays (12,414 patients; May 2017 – Jul 2024); the split into training and test data "
+    "and all cross-validation folds were grouped by patient. Four candidate models — ridge regression, random forest, "
+    "extremely randomised trees (extra trees) and gradient boosting (XGBoost) — were trained on a log1p-transformed "
+    "target with identical preprocessing; hyperparameters were tuned by 4-fold patient-grouped cross-validation. The "
+    "single model with the lowest cross-validated mean absolute error (MAE) was pre-specified as the final model. The "
+    "final model was then evaluated, unchanged, against prospectively documented senior-physician LOS estimates in an "
+    "independent cohort of 193 completed matched stays (is_open = 0; LOS > 1 day; Oct 2024 – Jan 2026).")
 labeled("Results:","A feature set that aggregated measurements over the whole stay produced optimistic apparent "
     "performance (R² ≈ 0.61); restricting predictors to a strict 24-hour window removed this leakage and revealed a "
     "substantially harder task. On the patient-grouped hold-out test set the four models performed near-identically "
     "(R² 0.23–0.32; MAE 2.75–2.94 days); extra trees was selected (test MAE 2.76 days, R² 0.31). The strongest "
-    "predictors were early intensive-care complex-treatment and monitoring procedure codes. In the prospective "
-    "comparison the senior physician outperformed the model (MAE 2.60 vs 3.63 days; R² 0.25 vs −0.02), with the gap "
-    "concentrated in long stays.")
+    "predictors were early intensive-care complex-treatment and monitoring procedure codes. For the prospective "
+    "comparison (193 completed stays, is_open = 0) the identical first-24-hour features were reconstructed from the "
+    "raw prospective records (86% of features available; the remainder were rare diagnoses/procedures that did not "
+    "occur within 24 h). With these genuine inputs extra trees and XGBoost carried modest predictive signal "
+    "(R² 0.05–0.07), yet the senior physician still outperformed every model (MAE 2.01 vs 2.70 days for the final "
+    "model; R² 0.22 vs 0.05), with the gap concentrated in long stays.")
 labeled("Conclusion:","Under strict leakage control and prospective, clinician-benchmarked validation, 24-hour ML "
     "models did not match experienced senior-physician judgement for ICU LOS prediction. Transparent reporting of the "
     "prediction time point and clinician benchmarking are essential before such models are considered for deployment.")
@@ -136,12 +139,15 @@ body("Single-centre study using de-identified routine data from the clinical dat
     "ethics approval and the waiver of informed consent for analysis of de-identified routine data are to be inserted "
     "(see Ethics statement). Reporting follows TRIPOD+AI [9].")
 h2("2.2  Cohorts (retrospective development and prospective evaluation)")
-body("Two clearly separated cohorts were used (Table 1). The retrospective development cohort comprised 17,032 ICU "
-    "stays from 12,414 patients (13,275 hospital encounters) on 17 ward/care-unit combinations of the participating "
-    "ICU service, restricted to stays longer than 24 hours. The independent prospective cohort was drawn from a later "
-    "time period (daily live-system snapshots); of these, 360 stays had a senior-physician LOS estimate documented "
-    "during routine care and formed the matched evaluation set. The prospective cohort was used only for evaluation, "
-    "never for model fitting or selection.")
+body("Two clearly separated, non-overlapping cohorts were used (Table 1). The retrospective development cohort "
+    "comprised 17,032 ICU stays from 12,414 patients (13,275 hospital encounters) on 17 ward/care-unit combinations "
+    "of the participating ICU service, with stays longer than 24 hours, covering May 2017 to July 2024. The "
+    "independent prospective cohort was drawn from a later period (Oct 2024 – Jan 2026; daily live-system snapshots). "
+    "A snapshot flag (is_open) marks stays still active at the time of data capture; these carries a censored, "
+    "not-yet-final LOS value. Only completed stays (is_open = 0) with a LOS > 1 day were included, yielding a "
+    "prospective cohort of 2,026 stays. Of these, 193 had a senior-physician LOS estimate documented during routine "
+    "care and formed the matched evaluation set. The prospective cohort was used only for evaluation, never for model "
+    "fitting or selection.")
 h2("2.3  Outcome and units")
 body("The outcome was ICU LOS in days. In the source data the stay duration is recorded in hours (icu_duration_h); the "
     "modelling target is therefore icu_duration_h ÷ 24 (days). The senior-physician estimates were recorded directly in "
@@ -173,8 +179,15 @@ h2("2.6  Missing data and preprocessing")
 body("A single preprocessing pipeline was applied inside cross-validation (fitted on training folds only, to avoid "
     "leakage): median imputation of numeric predictors, most-frequent imputation and one-hot encoding of the single "
     "categorical predictor (care-unit type), and standardisation of numeric predictors for ridge regression only "
-    "(tree ensembles are scale-invariant). In the prospective cohort, early features not materialised in the "
-    "live-snapshot data were imputed with the training medians — a deliberate reflection of real-world deployment.")
+    "(tree ensembles are scale-invariant).")
+body("For the prospective cohort the identical first-24-hour predictors were reconstructed directly from the raw "
+    "prospective source tables (laboratory, vital signs, procedures, vascular access, diagnoses), using the same "
+    "feature definitions, 24-hour window and naming as in development. This yielded genuine values for 72 of the 84 "
+    "predictors (86%); the median per-stay completeness was 78%. The remaining 12 predictors were 5 diagnoses and 6 "
+    "procedure codes that did not occur within the first 24 hours of any prospective stay; for these binary features "
+    "median imputation is equivalent to “not present”. Thus, in contrast to a preliminary analysis in which most "
+    "predictors had been unavailable in the prospective data and were median-imputed, the present prospective "
+    "evaluation uses essentially complete, genuine 24-hour inputs and is therefore a fair test of the model.")
 h2("2.7  Model development, hyperparameter tuning and model selection")
 body("Four candidate models were compared consistently throughout: ridge regression (a regularised linear baseline), "
     "random forest, extra trees and XGBoost (gradient boosting). Hyperparameters were tuned on the training set only "
@@ -209,7 +222,8 @@ h1("3  Results")
 h2("3.1  Cohorts")
 body("Cohort characteristics are summarised in Table 1. The retrospective cohort contained 17,032 stays (12,414 "
     "patients), split into 13,603 training and 3,429 hold-out test stays with no patient shared between them. The "
-    "prospective matched cohort contained 360 stays with a documented senior-physician estimate.")
+    "prospective cohort contained 2,026 completed stays (is_open = 0, LOS > 1 day); of these, 193 had a documented "
+    "senior-physician estimate and formed the matched evaluation set.")
 h2("3.2  Effect of leakage control")
 body("Replacing the 15 inadvertently substituted whole-stay features with their genuine 24-hour counterparts (or "
     "removing them where unavailable) reduced apparent retrospective performance markedly: a feature set containing "
@@ -229,11 +243,19 @@ body("Permutation importance for the final model (Table 5, Figure 2) was dominat
     "codes and the total number of procedures. Ventilator-dependence and a small number of diagnoses (viral pneumonia, "
     "hydrocephalus) and patient age contributed modestly.")
 h2("3.5  Prospective comparison with the senior physician")
-body("In the matched prospective cohort the senior physician outperformed the final model on every overall metric "
-    "(Table 4): MAE 2.60 vs 3.63 days, median absolute error 0.93 vs 2.23 days, R² 0.25 vs −0.02. All four ML models "
-    "behaved similarly (MAE 3.63–3.90 days, R² ≈ 0), i.e. no better than predicting the cohort mean. The marked drop "
-    "from retrospective to prospective performance is consistent with distribution shift between the development and "
-    "prospective periods and with the reduced availability of early features in the live data.")
+body("The prospective evaluation used 193 completed stays (is_open = 0, LOS > 1 day) with a documented "
+    "senior-physician estimate. With the reconstructed, essentially complete 24-hour inputs (Section 2.6), the senior "
+    "physician outperformed every model on all overall metrics (Table 4): MAE 2.01 vs 2.70 days and R² 0.22 vs 0.05 "
+    "for the final model (extra trees). Unlike a preliminary, feature-impoverished analysis in which the models had "
+    "reduced to predicting near the cohort mean (R² ≈ 0), extra trees and XGBoost carried modest but genuine "
+    "prospective signal (R² 0.05–0.07); restricting the comparison to completed stays also improved the "
+    "physician’s apparent accuracy (previous censored-stay analysis: MAE 2.60 d). In the long-stay subgroup "
+    "(> 7 days, n = 27), the physician’s advantage narrowed (physician MAE 6.51 vs XGBoost 6.84 days). Short stays "
+    "(1–7 days, n = 166) favoured the physician clearly (MAE 1.28 vs extra trees 1.86 days). The regularised linear "
+    "model (ridge) was unstable under the prospective distribution shift (R² −7.06, large positive bias) and is not "
+    "recommended. The overall retrospective-to-prospective performance drop is consistent with distribution shift "
+    "between the two periods. The central finding is therefore robust to a fair, leakage-free prospective test: the "
+    "experienced senior physician still outperforms the model, with the gap largest in long stays.")
 h2("3.6  Calibration across the LOS range")
 body("Observed-versus-predicted density plots (Figures 3–5, shown to 20 days for legibility) make the behaviour "
     "explicit. Both the model and the physician are well aligned with the identity line for short stays, but "
@@ -252,7 +274,8 @@ figure(CAN/"fig_hexbin_retro_ExtraTrees.png",11.5)
 figcap(3,"Retrospective hold-out: observed versus predicted ICU LOS (final model, extra trees). Axes truncated at 20 "
     "days for legibility; metrics computed on all test stays.")
 figure(CAN/"fig_hexbin_pros_ExtraTrees.png",11.5)
-figcap(4,"Prospective cohort: observed versus predicted ICU LOS (final model). Axes truncated at 20 days.")
+figcap(4,"Prospective cohort: observed versus predicted ICU LOS (final model, extra trees) using genuine "
+    "reconstructed first-24-hour features. Axes truncated at 20 days.")
 figure(CAN/"fig_hexbin_pros_oberarzt.png",11.5)
 figcap(5,"Prospective cohort: observed ICU LOS versus the senior-physician estimate. Axes truncated at 20 days.")
 
@@ -275,10 +298,12 @@ body("The leakage result generalises beyond this dataset: because LOS is a tempo
     "contextual knowledge — surgical trajectory, anticipated complications, organisational factors — not captured in "
     "structured 24-hour data.")
 h2("4.1  Limitations")
-body("This is a single-centre study; absolute performance may not transfer. The prospective comparison rested on 360 "
-    "matched stays, and the physicians’ estimates may have drawn on information accruing beyond 24 hours. The "
-    "retrospective-to-prospective performance drop indicates distribution shift whose drivers (case mix, coding, "
-    "feature availability) were not fully characterised. We restricted predictors to the first 24 hours; richer "
+body("This is a single-centre study; absolute performance may not transfer. The prospective comparison rested on 193 "
+    "completed matched stays (is_open = 0), and the physicians’ estimates may have drawn on information accruing beyond 24 hours. Because the "
+    "prospective 24-hour features were reconstructed to be essentially complete, the retrospective-to-prospective "
+    "performance drop reflects genuine distribution shift between the two periods (case mix, coding practice) rather "
+    "than missing inputs, although these drivers were not fully characterised. We restricted predictors to the first "
+    "24 hours; richer "
     "longitudinal inputs, dynamic re-prediction, or tail-oriented approaches (quantile, Tweedie/Gamma, discrete-time "
     "hazard models) may narrow the long-stay gap and are a priority for future work.")
 h1("5  Conclusion")
@@ -328,7 +353,8 @@ h1("Tables")
 cap(1,"Cohort definition and characteristics (retrospective development vs prospective evaluation).")
 table([
  ["Characteristic","Retrospective (development)","Prospective (evaluation)"],
- ["ICU stays (n)","17,032","360 (matched to a senior estimate)"],
+ ["Data period","May 2017 – Jul 2024","Oct 2024 – Jan 2026"],
+ ["ICU stays (n)","17,032","2,026 (completed; 193 with senior estimate)"],
  ["Patients (n)","12,414","—"],
  ["Hospital encounters (n)","13,275","—"],
  ["Patients with >1 ICU stay","3,156","—"],
@@ -338,7 +364,9 @@ table([
  ["Train / test split","13,603 / 3,429 (patient-grouped)","evaluation only"],
  ["Role","model development & selection","external prospective test"],
 ],[5.2,5.5,5.5],numcols_from=1)
-small("LOS, length of stay. The prospective cohort was never used for fitting or model selection.")
+small("LOS, length of stay. Prospective cohort restricted to completed stays (is_open = 0) with LOS > 1 day. "
+    "The 193-stay benchmark subset had a documented senior-physician estimate. The prospective cohort was never used "
+    "for fitting or model selection. Cohorts do not overlap in time (out-of-time comparison).")
 
 cap(2,"Predictor domains (84 leakage-free features, all from the first 24 hours).")
 table([
@@ -366,16 +394,20 @@ small("All models use a log1p target and identical preprocessing; ridge addition
     "patient-grouped cross-validation on the training set (negative MAE optimised). Final model pre-specified by lowest "
     "CV MAE (extra trees); random forest and XGBoost are statistically indistinguishable.")
 
-cap(4,"Prospective comparison: all models versus the senior physician (matched cohort, n = 360).")
+cap(4,"Prospective comparison: all models versus the senior physician (completed matched stays, n = 193; is_open = 0, "
+    "LOS > 1 day), using genuine reconstructed first-24-hour features.")
 table([
  ["Method","MAE (d)","Median AE (d)","RMSE (d)","R²","Bias (d)"],
- ["Senior physician","2.60","0.93","5.25","0.25","−0.62"],
- ["Extra trees (final ML model)","3.63","2.23","6.12","−0.02","−1.12"],
- ["Random forest","3.72","2.43","6.09","−0.01","−0.75"],
- ["XGBoost","3.78","2.45","6.10","−0.01","−0.64"],
- ["Ridge","3.90","2.77","6.07","−0.00","−0.42"],
+ ["Senior physician","2.01","0.89","3.80","0.22","−0.14"],
+ ["Extra trees (final ML model)","2.70","1.80","4.19","0.05","+0.09"],
+ ["XGBoost","2.87","2.12","4.14","0.07","+0.63"],
+ ["Random forest","2.90","2.11","4.30","−0.00","+0.39"],
+ ["Ridge","5.64","3.62","12.19","−7.06","+3.87"],
 ],[5.6,2.2,2.4,2.0,1.6,2.0],numcols_from=1)
-small("Negative R² indicates worse agreement than predicting the cohort mean. Same metric definitions as Table 3.")
+small("Subgroup MAE — 1–7 days (n = 166): physician 1.28 vs extra trees 1.86; > 7 days (n = 27): physician 6.51 vs "
+    "XGBoost 6.84. Only completed stays (is_open = 0) are included; censored stays (patient still on ICU at data "
+    "capture) were excluded to ensure the observed LOS is the actual final value. Ridge is unstable under prospective "
+    "distribution shift (R² −7.06, large positive bias). Same metric definitions as Table 3.")
 
 cap(5,"Most important predictors of the final model (permutation importance, hold-out test set).")
 table([

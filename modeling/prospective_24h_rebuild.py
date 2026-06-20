@@ -70,7 +70,8 @@ models={
 print("Training (beste Hyperparameter) ..."); [m.fit(X.iloc[tr],y[tr]) for m in models.values()]
 
 # ---------------- prospektive Kohorte + Senior-Match ----------------
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}')").df()
+# nur abgeschlossene Aufenthalte (is_open=0) mit tatsaechlicher LoS > 1 Tag, konsistent zur retrospektiven Kohorte
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE is_open=0 AND icu_duration_h/24.0>1").df()
 dp["los_days"]=dp["icu_duration_h"]/24.0
 sen=pd.read_csv(SENIOR,sep=";"); dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)
 mg=dp.merge(sen,left_on="stay_id",right_on="tages_stay_id",how="inner")

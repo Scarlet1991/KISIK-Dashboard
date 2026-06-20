@@ -100,9 +100,18 @@ These are the **leakage-controlled** results from the canonical analysis
 |---------|---------|
 | Leakage check | Whole-stay aggregates inflate apparent fit (R² ≈ 0.61); a strict 24 h window removes it and gives R² ≈ 0.31. An earlier pipeline had substituted 15 whole-stay features — that leakage is removed here. |
 | Retrospective hold-out (n = 3,429) | All four models near-identical (MAE 2.75–2.94 d; R² 0.23–0.32). Final model by lowest patient-grouped CV-MAE = **Extra Trees** (MAE 2.76 d, R² 0.31); random forest and XGBoost equivalent, Ridge worst. |
-| Prospective vs. senior physician (n = 360) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 78 %). **Physician wins overall** (MAE 2.60 vs 3.61 d; R² 0.25 vs 0.07 for the final model). Models carry modest real signal (R² 0.03–0.10); ridge is unstable under distribution shift. |
+| Prospective vs. senior physician (n = 193, completed stays) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 78 %). Only **completed stays** (`is_open = 0`, LOS > 1 day) are used — censored stays (patient still admitted at snapshot time) carry a non-final LOS and are excluded. **Physician wins overall** (MAE 2.01 vs 2.70 d; R² 0.22 vs 0.05 for Extra Trees). Extra Trees and XGBoost carry modest real signal (R² 0.05–0.07); Ridge is unstable under distribution shift (R² −7.06). |
 | Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). |
 | Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
+
+### `is_open` flag (prospective data)
+
+The prospective parquet contains an `is_open` column set by the snapshot pipeline:
+
+- `is_open = 0`: the patient has been discharged from ICU — `icu_duration_h` is the **actual, final LOS**.
+- `is_open = 1`: the patient was **still on the ICU** when the snapshot was taken — `icu_duration_h` is only the elapsed time so far, not the final LOS.
+
+Including open stays in an LOS benchmark would compare model predictions to incomplete, systematically short durations. All evaluation scripts therefore filter `WHERE is_open = 0 AND icu_duration_h/24.0 > 1`.
 
 ---
 

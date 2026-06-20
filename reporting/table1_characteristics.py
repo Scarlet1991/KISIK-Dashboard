@@ -20,7 +20,9 @@ allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ0
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 con=duckdb.connect()
 def load(p):
-    d=con.execute(f"SELECT * FROM read_parquet('{p}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
+    cols=con.execute(f"SELECT * FROM read_parquet('{p}') LIMIT 0").df().columns
+    extra=" AND is_open=0" if "is_open" in cols else ""   # nur abgeschlossene Aufenthalte (tatsaechliche LoS)
+    d=con.execute(f"SELECT * FROM read_parquet('{p}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1{extra}").df()
     d["ICU-LoS (days)"]=d["icu_duration_h"]/24.0
     if "hospital_duration_h" in d.columns: d["Hospital-LoS (days)"]=pd.to_numeric(d["hospital_duration_h"],errors="coerce")/24.0
     for c in ["alter","stay_nr","score_saps_ii_14_first","score_sofa_first","score_tiss_28_10_first"]:
@@ -140,8 +142,8 @@ note("Severity scores were extracted from the score table (first value within 24
      "descriptively. Hospital length of stay was likewise unavailable prospectively. Sex and body-mass index were not "
      "available in either dataset.")
 note("With the large retrospective sample the p-values are strongly powered, so small absolute differences reach "
-     "significance; the SMD is the more meaningful measure of cohort imbalance. The prospective cohort here is the full "
-     "prospective dataset under identical inclusion criteria (n = 2,758); the senior-physician benchmark used a subset "
-     "of 360 stays with a documented estimate.")
+     "significance; the SMD is the more meaningful measure of cohort imbalance. The prospective cohort here includes "
+     "only completed stays (is_open = 0, LOS > 1 day) under identical inclusion criteria (n = 2,026); the "
+     "senior-physician benchmark used a subset of 193 completed stays with a documented estimate.")
 doc.save(str(OUTdoc))
 print(f"\nGespeichert: {OUTdoc}\n           {OUTcsv}")
