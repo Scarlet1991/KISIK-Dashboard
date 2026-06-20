@@ -83,6 +83,19 @@ print("Top-12 LASSO-Koeffizienten:"); print(coef_df.head(12).drop(columns="abs")
 idx_sel=[fnames.index(f) for f in sel_min]
 
 # ====================== LASSO-Grafiken ======================
+# Englische, lesbare Achsenbeschriftung (Rohspaltennamen enthalten dt. Labor-Tokens)
+_DE_TOK={"natrium":"sodium","chlorid":"chloride","kalium":"potassium","kalzium":"calcium",
+ "calcium":"calcium","harnstoff":"urea","gesamt":"total","anzahl":"count","oebenekurz":"care-unit",
+ "alter":"age","saeure":"acid"}
+_PREF={"lab24_":"Lab: ","vital24_":"Vital: ","proc24_":"Procedure ","zugang24_":"Access: ","diag_main_":"Diagnosis "}
+def clean_label(f):
+    s=f
+    if s.startswith(("num__","cat__")): s=s.split("__",1)[1]
+    pre=""
+    for k,v in _PREF.items():
+        if s.startswith(k): pre=v; s=s[len(k):]; break
+    for de,en in _DE_TOK.items(): s=s.replace(de,en)
+    return (pre+s.replace("_"," ")).strip()
 plt.rcParams.update({"font.size":11,"axes.spines.top":False,"axes.spines.right":False})
 la=-np.log10(alphas)
 # Fig 1: Koeffizientenpfade
@@ -108,7 +121,7 @@ fig.tight_layout(); fig.savefig(str(OUT/"fig_lasso_cv.png"),dpi=300,bbox_inches=
 # Fig 3: selektierte Koeffizienten
 fig,ax=plt.subplots(figsize=(8,max(4,0.32*min(len(coef_df),20))))
 show=coef_df.head(20).iloc[::-1]
-ax.barh(show["Feature"],show["coef_lambda_min"],color=["#d6604d" if v<0 else "#2166ac" for v in show["coef_lambda_min"]])
+ax.barh([clean_label(f) for f in show["Feature"]],show["coef_lambda_min"],color=["#d6604d" if v<0 else "#2166ac" for v in show["coef_lambda_min"]])
 ax.axvline(0,color="#444",lw=.8); ax.set_xlabel("LASSO coefficient (λ.min, standardised features)")
 ax.set_title(f"Selected predictors (LASSO, {len(sel_min)} non-zero)",weight="bold")
 fig.tight_layout(); fig.savefig(str(OUT/"fig_lasso_coefficients.png"),dpi=300,bbox_inches="tight"); plt.close(fig)

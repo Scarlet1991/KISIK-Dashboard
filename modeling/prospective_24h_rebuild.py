@@ -209,4 +209,53 @@ def hexbin(obs,pred,title,path):
     ax.text(0.97,0.03,box,transform=ax.transAxes,ha="right",va="bottom",fontsize=10,bbox=dict(boxstyle="round,pad=0.4",fc="white",ec="#bbb",alpha=.9))
     fig.tight_layout(); fig.savefig(str(path),dpi=300,bbox_inches="tight"); plt.close(fig)
 hexbin(yt,predf["pred_ExtraTrees"].values,"Prospective — ExtraTrees (fair 24 h features)",AN/"canonical"/"fig_hexbin_pros_ExtraTrees.png")
-print("Figur aktualisiert: canonical/fig_hexbin_pros_ExtraTrees.png")
+# Senior-physician hexbin (English title, fair n=193) — overwrites the stale n=360 version from canonical_analysis.py
+hexbin(yt,predf["arzt"].values,"Prospective — senior physician",AN/"canonical"/"fig_hexbin_pros_oberarzt.png")
+print("Figuren aktualisiert: canonical/fig_hexbin_pros_ExtraTrees.png, fig_hexbin_pros_oberarzt.png")
+
+# ---- Modellvergleich (retro Holdout vs. faire prospektive n=193) + Senior-Linie, English ----
+retro_csv=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
+resi=res.set_index("Modell")
+order=["Ridge","RandomForest","ExtraTrees","XGBoost"]
+rt=[float(retro_csv.loc[m,"MAE_days"]) for m in order]
+pp=[float(resi.loc[m,"MAE"]) for m in order]
+sen_mae=float(resi.loc["Oberarzt","MAE"])
+fig,ax=plt.subplots(figsize=(8,4.6)); xr=np.arange(len(order)); w=0.38
+ax.bar(xr-w/2,rt,w,label="retrospective hold-out (n=3,429)",color="#b5d4f4")
+ax.bar(xr+w/2,pp,w,label="prospective (n=193, completed stays)",color="#185fa5")
+ax.axhline(sen_mae,color="#d6604d",ls="--",lw=1.5)
+ax.text(len(order)-1,sen_mae+0.05,f"Senior physician (prospective, MAE {sen_mae:.2f} d)",color="#d6604d",ha="right",fontsize=9)
+ax.set_xticks(xr); ax.set_xticklabels(["Ridge","Random forest","Extra Trees","XGBoost"]); ax.set_ylabel("MAE (days)")
+ax.set_title("Model comparison — MAE (retrospective vs prospective)",weight="bold"); ax.legend(fontsize=9)
+fig.tight_layout(); fig.savefig(str(AN/"canonical"/"fig_model_comparison.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur aktualisiert: canonical/fig_model_comparison.png (faire prospektive n=193)")
+
+# ---- Permutation-Importance-Figur mit englischen Labels (aus feature_importance.csv) ----
+LABELS={
+ "proc24_8_98f_0":"ICU complex treatment, base (8-98f.0)",
+ "proc24_8_98f_10":"ICU complex treatment, extended (8-98f.10)",
+ "oebenekurz":"ICU care-unit type",
+ "proc24_8_931_0":"Extended haemodynamic monitoring (8-931)",
+ "proc24_8_924":"Cardiac monitoring (8-924)",
+ "proc24_anzahl_gesamt":"Total procedure count (24 h)",
+ "proc24_8_98f_11":"ICU complex treatment, prolonged (8-98f.11)",
+ "diag_main_z99_1":"Ventilator dependence (Z99.1)",
+ "proc24_8_930":"Basic haemodynamic monitoring (8-930)",
+ "stay_nr":"ICU stay number",
+ "diag_main_j12_8":"Viral pneumonia (J12.8)",
+ "diag_main_g91_0":"Communicating hydrocephalus (G91.0)",
+ "alter":"Age",
+ "diag_main_g91_8":"Hydrocephalus, other (G91.8)",
+ "proc24_3_200":"Native cranial CT (3-200)",
+}
+def eng_label(f):
+    if f in LABELS: return LABELS[f]
+    t=f.replace("lab24_","Lab: ").replace("vital24_","Vital: ").replace("proc24_","Procedure ").replace("zugang24_","Access: ").replace("diag_main_","Diagnosis ").replace("_"," ")
+    return t
+imp=pd.read_csv(AN/"canonical"/"feature_importance.csv",sep=";").head(15).iloc[::-1]
+fig,ax=plt.subplots(figsize=(8.4,6));
+ax.barh([eng_label(f) for f in imp["Feature"]],imp["MAE_increase_days"],xerr=imp["sd"],color="#762a83")
+ax.set_xlabel("Increase in MAE when permuted (days)"); ax.margins(y=0.01)
+ax.set_title("Permutation feature importance — Extra Trees (final model)",weight="bold")
+fig.tight_layout(); fig.savefig(str(AN/"canonical"/"fig_importance.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur aktualisiert: canonical/fig_importance.png (englische Labels)")

@@ -191,7 +191,7 @@ def hexbin(obs,pred,title,path):
 
 hexbin(yte,preds_te[final_name],f"Retrospective hold-out — {final_name} (log1p)",OUT/f"fig_hexbin_retro_{final_name}.png")
 hexbin(mg["los_days"].values,preds_pp[final_name],f"Prospective — {final_name} (log1p)",OUT/f"fig_hexbin_pros_{final_name}.png")
-hexbin(mg["los_days"].values,preds_pp["Oberarzt"],"Prospective — senior physician (Oberarzt)",OUT/"fig_hexbin_pros_oberarzt.png")
+hexbin(mg["los_days"].values,preds_pp["Oberarzt"],"Prospective — senior physician",OUT/"fig_hexbin_pros_oberarzt.png")
 
 # Modellvergleich (retro + prospektiv MAE)
 fig,ax=plt.subplots(figsize=(8,4.6)); order=["Ridge","RandomForest","ExtraTrees","XGBoost"]
@@ -201,15 +201,27 @@ pp=[pros_df.set_index("Modell").loc[m,"MAE_days"] for m in order]
 ax.bar(xr-w/2,rt,w,label="retrospective hold-out",color="#b5d4f4")
 ax.bar(xr+w/2,pp,w,label="prospective",color="#185fa5")
 ax.axhline(pros_df.set_index("Modell").loc["Oberarzt","MAE_days"],color="#d6604d",ls="--",lw=1.5)
-ax.text(len(order)-1,pros_df.set_index("Modell").loc["Oberarzt","MAE_days"]+0.05,"Oberarzt (prosp.)",color="#d6604d",ha="right",fontsize=9)
+ax.text(len(order)-1,pros_df.set_index("Modell").loc["Oberarzt","MAE_days"]+0.05,"Senior physician (prosp.)",color="#d6604d",ha="right",fontsize=9)
 ax.set_xticks(xr); ax.set_xticklabels(order); ax.set_ylabel("MAE (days)")
 ax.set_title("Model comparison — MAE (retrospective vs prospective)",weight="bold"); ax.legend()
 fig.tight_layout(); fig.savefig(str(OUT/"fig_model_comparison.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
 
-# Permutation-Importance Top-15
-fig,ax=plt.subplots(figsize=(8,6)); top=imp.head(15).iloc[::-1]
-ax.barh(top["Feature"],top["MAE_increase_days"],xerr=top["sd"],color="#762a83")
-ax.set_xlabel("Increase in MAE when permuted (days)")
+# Permutation-Importance Top-15 (englische, lesbare Labels statt Rohspaltennamen)
+IMP_LABELS={
+ "proc24_8_98f_0":"ICU complex treatment, base (8-98f.0)","proc24_8_98f_10":"ICU complex treatment, extended (8-98f.10)",
+ "oebenekurz":"ICU care-unit type","proc24_8_931_0":"Extended haemodynamic monitoring (8-931)",
+ "proc24_8_924":"Cardiac monitoring (8-924)","proc24_anzahl_gesamt":"Total procedure count (24 h)",
+ "proc24_8_98f_11":"ICU complex treatment, prolonged (8-98f.11)","diag_main_z99_1":"Ventilator dependence (Z99.1)",
+ "proc24_8_930":"Basic haemodynamic monitoring (8-930)","stay_nr":"ICU stay number","alter":"Age",
+ "diag_main_j12_8":"Viral pneumonia (J12.8)","diag_main_g91_0":"Communicating hydrocephalus (G91.0)",
+ "diag_main_g91_8":"Hydrocephalus, other (G91.8)","proc24_3_200":"Native cranial CT (3-200)"}
+def _implabel(f):
+    if f in IMP_LABELS: return IMP_LABELS[f]
+    return (f.replace("lab24_","Lab: ").replace("vital24_","Vital: ").replace("proc24_","Procedure ")
+             .replace("zugang24_","Access: ").replace("diag_main_","Diagnosis ").replace("_"," "))
+fig,ax=plt.subplots(figsize=(8.4,6)); top=imp.head(15).iloc[::-1]
+ax.barh([_implabel(f) for f in top["Feature"]],top["MAE_increase_days"],xerr=top["sd"],color="#762a83")
+ax.set_xlabel("Increase in MAE when permuted (days)"); ax.margins(y=0.01)
 ax.set_title(f"Permutation feature importance — {final_name}",weight="bold")
 fig.tight_layout(); fig.savefig(str(OUT/"fig_importance.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
 
