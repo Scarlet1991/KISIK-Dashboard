@@ -113,20 +113,24 @@ pipeline/    data pipelines, 24h feature engineering & leakage diagnostics
   retrospective_dataset_pipeline.py   build retrospective ML dataset from raw CSVs (key: fallid)
   prospective_dataset_pipeline.py     build prospective ML dataset from daily OLD snapshots (key: fallnr)
   add_24h_features.py                 first-24h windowed features (leakage-free)
+  build_scores.py                     first-24h severity scores (SAPS II, TISS-28, SOFA) for both cohorts from score.csv + coverage report
   check_leakage.py                    leakage diagnostics
   check_features_24h.py               verify selected features exist
 modeling/    model training & evaluation
   canonical_analysis.py               SINGLE SOURCE OF TRUTH: leakage-free features, grouped-CV hyperparameter tuning,
                                       consistent 4-model comparison, model selection, permutation importance, figures
   prospective_24h_rebuild.py          rebuild genuine first-24h features for the prospective cohort from raw OLD data; fair senior-physician benchmark + coverage report
+  model_with_scores.py                sensitivity analysis: add SAPS II + TISS-28 to the retrospective model (improves R^2 ~+0.05)
+  lasso_svm_los.py                    LASSO feature selection (paths/CV plots) + SVR/LinearSVR comparison
   train_los_model_24h.py              earlier notebook-extracted training routine (superseded by canonical_analysis.py)
   oberarzt_vs_ml_extended.py          earlier RF/ExtraTrees/XGBoost/Ridge vs senior comparison
   experiment_op_features.py           OP/anaesthesia features + asymmetric-loss tail model
   quantile_op_prospective.py          quantile (P50/P80) + OP features, prospective head-to-head
   tweedie_hazard.py                   Tweedie/Gamma + discrete-time hazard
 figures/     publication figures (matplotlib, 300 DPI)
-reporting/   TRIPOD+AI manuscript generator (python-docx)
+reporting/   TRIPOD+AI manuscript generator + Table 1 (python-docx)
   build_manuscript_v2.py              builds the manuscript from canonical_analysis.py outputs
+  table1_characteristics.py           Table 1: retro vs prospective characteristics + statistical comparison (Mann-Whitney/chi-square, SMD)
 dashboard/   interactive per-day ward dashboard with per-patient SHAP
 ```
 
