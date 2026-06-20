@@ -18,7 +18,7 @@ from xgboost import XGBRegressor
 BASE=Path(r"D:\Ausgangsdaten\KISIK Projekt"); AN=BASE/"Eigene Auswertung"
 RETRO=BASE/"kisik2"/"kisik2_icu_ml_dataset_24h.parquet"; FEAT=AN/"los_selected_features_ain_24h_compact.csv"
 SCORES=AN/"canonical"/"scores24_retro.csv"; RS=42
-allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ01"),("AVT","IZ01"),("GCH","IZ01"),("GYN","IZ01"),("HNO","IZ01"),("HTC","IZ01"),("IZPV","IZ01"),("MKG","IZ01"),("NCH","IZ01"),("NUK","IZ01"),("STR","IZ01"),("UCH","IZ01"),("URO","IZ01")]
+allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed); con=duckdb.connect()
 df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0

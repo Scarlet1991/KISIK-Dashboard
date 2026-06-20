@@ -43,7 +43,7 @@ def sanitize(v):
     return t[:60] or "unknown"
 
 # ---------------- Training (kanonisch, beste Hyperparameter) ----------------
-allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ01"),("AVT","IZ01"),("GCH","IZ01"),("GYN","IZ01"),("HNO","IZ01"),("HTC","IZ01"),("IZPV","IZ01"),("MKG","IZ01"),("NCH","IZ01"),("NUK","IZ01"),("STR","IZ01"),("UCH","IZ01"),("URO","IZ01")]
+allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0
@@ -61,17 +61,21 @@ def pre(scale=False):
     ns=[("imp",SimpleImputer(strategy="median"))]+([("sc",StandardScaler())] if scale else [])
     return ColumnTransformer([("num",Pipeline(ns),numc),("cat",Pipeline([("imp",SimpleImputer(strategy="most_frequent")),("ohe",OneHotEncoder(handle_unknown="ignore"))]),cat)])
 def ttr(reg,scale=False): return TransformedTargetRegressor(Pipeline([("pre",pre(scale)),("mdl",reg)]),func=np.log1p,inverse_func=np.expm1)
+# beste Hyperparameter aus der kanonischen Analyse (summary.json) laden -> konsistent zum finalen Modell
+import json
+bp=json.loads((AN/"canonical"/"summary.json").read_text(encoding="utf-8"))["best_params"]
 models={
- "Ridge":ttr(Ridge(alpha=0.1,random_state=RS),scale=True),
- "RandomForest":ttr(RandomForestRegressor(n_estimators=500,min_samples_leaf=2,max_features=0.5,max_depth=20,random_state=RS,n_jobs=1)),
- "ExtraTrees":ttr(ExtraTreesRegressor(n_estimators=500,min_samples_leaf=2,max_features=0.5,max_depth=20,random_state=RS,n_jobs=1)),
- "XGBoost":ttr(XGBRegressor(n_estimators=500,max_depth=8,learning_rate=0.05,subsample=0.9,colsample_bytree=0.9,min_child_weight=1,reg_lambda=5,random_state=RS,n_jobs=1,tree_method="hist")),
+ "Ridge":ttr(Ridge(**bp["Ridge"],random_state=RS),scale=True),
+ "RandomForest":ttr(RandomForestRegressor(**bp["RandomForest"],random_state=RS,n_jobs=1)),
+ "ExtraTrees":ttr(ExtraTreesRegressor(**bp["ExtraTrees"],random_state=RS,n_jobs=1)),
+ "XGBoost":ttr(XGBRegressor(**bp["XGBoost"],random_state=RS,n_jobs=1,tree_method="hist")),
 }
-print("Training (beste Hyperparameter) ..."); [m.fit(X.iloc[tr],y[tr]) for m in models.values()]
+print(f"Training (beste Hyperparameter aus summary.json) ... ExtraTrees={bp['ExtraTrees']}"); [m.fit(X.iloc[tr],y[tr]) for m in models.values()]
 
 # ---------------- prospektive Kohorte + Senior-Match ----------------
-# nur abgeschlossene Aufenthalte (is_open=0) mit tatsaechlicher LoS > 1 Tag, konsistent zur retrospektiven Kohorte
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE is_open=0 AND icu_duration_h/24.0>1").df()
+# gleiche Stations-/Einheiten-Filter wie retrospektiv (AIN IZ32/21/31), nur abgeschlossene
+# Aufenthalte (is_open=0) mit tatsaechlicher LoS > 1 Tag
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND is_open=0 AND icu_duration_h/24.0>1").df()
 dp["los_days"]=dp["icu_duration_h"]/24.0
 sen=pd.read_csv(SENIOR,sep=";"); dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)
 mg=dp.merge(sen,left_on="stay_id",right_on="tages_stay_id",how="inner")
@@ -220,9 +224,10 @@ order=["Ridge","RandomForest","ExtraTrees","XGBoost"]
 rt=[float(retro_csv.loc[m,"MAE_days"]) for m in order]
 pp=[float(resi.loc[m,"MAE"]) for m in order]
 sen_mae=float(resi.loc["Oberarzt","MAE"])
+n_retro=int(retro_csv["n"].iloc[0]); n_pros=int(resi.loc["Oberarzt","n"])
 fig,ax=plt.subplots(figsize=(8,4.6)); xr=np.arange(len(order)); w=0.38
-ax.bar(xr-w/2,rt,w,label="retrospective hold-out (n=3,429)",color="#b5d4f4")
-ax.bar(xr+w/2,pp,w,label="prospective (n=193, completed stays)",color="#185fa5")
+ax.bar(xr-w/2,rt,w,label=f"retrospective hold-out (n={n_retro:,})",color="#b5d4f4")
+ax.bar(xr+w/2,pp,w,label=f"prospective (n={n_pros}, completed stays)",color="#185fa5")
 ax.axhline(sen_mae,color="#d6604d",ls="--",lw=1.5)
 ax.text(len(order)-1,sen_mae+0.05,f"Senior physician (prospective, MAE {sen_mae:.2f} d)",color="#d6604d",ha="right",fontsize=9)
 ax.set_xticks(xr); ax.set_xticklabels(["Ridge","Random forest","Extra Trees","XGBoost"]); ax.set_ylabel("MAE (days)")

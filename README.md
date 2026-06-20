@@ -84,7 +84,9 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
   Senior estimates match `tages_stay_id` ↔ prospective `stay_id`.
 - **Date formats differ:** retrospective ISO `YYYY-MM-DD HH:MM:SS`; prospective OLD CSVs
   German `DD.MM.YYYY HH:MM:SS` → parse with `COALESCE(TRY_CAST(...), TRY_STRPTIME(..., '%d.%m.%Y %H:%M:%S'))`.
-- **Ward filter** tuple order is `(wardshort, oebenekurz)`.
+- **Ward filter** tuple order is `(wardshort, oebenekurz)`. The cohort is restricted to the three
+  anaesthesiology-run intensive care units: `(AIN, IZ32)`, `(AIN, IZ21)`, `(AIN, IZ31)` — set via the
+  `allowed` list at the top of each script. Applied identically to retrospective and prospective data.
 - **Perioperative window** for OP features: `[planbegin − 1 day, planbegin + 24 h]`.
 - Paths are hard-coded to a local `D:\Ausgangsdaten\KISIK Projekt` layout — adjust the
   path constants at the top of each script.
@@ -95,13 +97,16 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
 
 These are the **leakage-controlled** results from the canonical analysis
 (`modeling/canonical_analysis.py`, the single source of truth for the manuscript).
+The cohort is restricted to the **three anaesthesiology-run intensive care units
+(`oebenekurz` IZ21 / IZ31 / IZ32, ward AIN)**; lower-acuity/intermediate units (e.g. IZ01)
+are excluded.
 
 | Setting | Finding |
 |---------|---------|
-| Leakage check | Whole-stay aggregates inflate apparent fit (R² ≈ 0.61); a strict 24 h window removes it and gives R² ≈ 0.31. An earlier pipeline had substituted 15 whole-stay features — that leakage is removed here. |
-| Retrospective hold-out (n = 3,429) | All four models near-identical (MAE 2.75–2.94 d; R² 0.23–0.32). Final model by lowest patient-grouped CV-MAE = **Extra Trees** (MAE 2.76 d, R² 0.31); random forest and XGBoost equivalent, Ridge worst. |
-| Prospective vs. senior physician (n = 193, completed stays) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 78 %). Only **completed stays** (`is_open = 0`, LOS > 1 day) are used — censored stays (patient still admitted at snapshot time) carry a non-final LOS and are excluded. **Physician wins overall** (MAE 2.01 vs 2.70 d; R² 0.22 vs 0.05 for Extra Trees). Extra Trees and XGBoost carry modest real signal (R² 0.05–0.07); Ridge is unstable under distribution shift (R² −7.06). |
-| Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). |
+| Leakage check | Substituting whole-stay aggregates for the 24 h lab/vital/procedure/access features (51 of 84 predictors) inflates apparent fit from R² ≈ 0.36 to R² ≈ 0.58 (ΔR² ≈ 0.22; MAE 2.75 → 2.20 d). A strict 24 h window removes this leakage. |
+| Retrospective hold-out (n = 2,601) | All four models near-identical (MAE 2.75–3.03 d; R² 0.25–0.36). Final model by lowest patient-grouped CV-MAE = **Extra Trees** (MAE 2.75 d, R² 0.36; 300 trees, leaf 5, depth None); random forest and XGBoost equivalent, Ridge worst. |
+| Prospective vs. senior physician (n = 193, completed stays) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 77 %). Only **completed stays** (`is_open = 0`, LOS > 1 day) in the three AIN units are used. All 193 senior-matched stays fall in these units. **Physician wins overall** (MAE 2.01 vs 2.64 d; R² 0.22 vs 0.07 for Extra Trees). Extra Trees is the only model with positive prospective R² (0.07); Ridge is unstable under distribution shift (R² −22). |
+| Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). Care-unit type is no longer informative in this single-department cohort. |
 | Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
 
 ### `is_open` flag (prospective data)

@@ -33,7 +33,7 @@ FEAT=AN/"los_selected_features_ain_24h_compact.csv"
 OUT=AN/"canonical"; OUT.mkdir(exist_ok=True)
 RS=42; CAP=20  # Figuren-Achsenlimit (Tage)
 
-allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ01"),("AVT","IZ01"),("GCH","IZ01"),("GYN","IZ01"),("HNO","IZ01"),("HTC","IZ01"),("IZPV","IZ01"),("MKG","IZ01"),("NCH","IZ01"),("NUK","IZ01"),("STR","IZ01"),("UCH","IZ01"),("URO","IZ01")]
+allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 con=duckdb.connect()
 
@@ -143,7 +143,7 @@ retro_df=pd.DataFrame(retro_rows).merge(cv_df,on="Modell").sort_values("MAE_days
 print("\n--- Retrospektiver Holdout (Tage) ---"); print(retro_df.to_string(index=False))
 
 # ---------------------------------------------------------------- Prospektiv + Oberarzt
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}')").df()
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql})").df()
 dp["los_days"]=dp["icu_duration_h"]/24.0
 sen=pd.read_csv(SENIOR,sep=";")
 dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)

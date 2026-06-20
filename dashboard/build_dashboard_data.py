@@ -15,7 +15,7 @@ OUT=AN/"dashboard_station_data.json"
 DAY=pd.Timestamp("2019-09-30"); WARD=("AIN","IZ32"); RS=42
 
 con=duckdb.connect()
-allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ01"),("AVT","IZ01"),("GCH","IZ01"),("GYN","IZ01"),("HNO","IZ01"),("HTC","IZ01"),("IZPV","IZ01"),("MKG","IZ01"),("NCH","IZ01"),("NUK","IZ01"),("STR","IZ01"),("UCH","IZ01"),("URO","IZ01")]
+allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 df=con.execute(f"SELECT * FROM read_parquet('{PQ.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["pb"]=pd.to_datetime(df["planbegin"],errors="coerce")

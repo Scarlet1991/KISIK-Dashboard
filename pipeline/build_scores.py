@@ -12,7 +12,7 @@ PROS =BASE/"kisik2"/"kisik2_prospektiv_ml_dataset.parquet"
 SCORE_R=BASE/"kisik2"/"score.csv"
 OLD="D:/Ausgangsdaten/Live-Daten/OLD"
 OUT=AN/"canonical"; OUT.mkdir(exist_ok=True)
-allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31"),("AIN","IZ01"),("AUG","IZ01"),("AVT","IZ01"),("GCH","IZ01"),("GYN","IZ01"),("HNO","IZ01"),("HTC","IZ01"),("IZPV","IZ01"),("MKG","IZ01"),("NCH","IZ01"),("NUK","IZ01"),("STR","IZ01"),("UCH","IZ01"),("URO","IZ01")]
+allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 con=duckdb.connect()
 TS=lambda c: f"COALESCE(TRY_CAST({c} AS TIMESTAMP), TRY_STRPTIME({c}, '%d.%m.%Y %H:%M:%S'))"
