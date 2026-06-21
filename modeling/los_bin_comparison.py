@@ -19,7 +19,8 @@ pred = pd.read_csv(CAN/"metrics_prospective_fair24h_predictions.csv", sep=";")
 y  = pred["los_obs"].to_numpy(float)
 ob = pred["arzt"].to_numpy(float)
 ml = np.clip(pred["pred_ExtraTrees"].to_numpy(float), 0, None)
-NULL = 2.90  # retrospective median LOS (deployment-realistic null), consistent with Table 9
+# Null = TRAININGS-Median (nur Trainingsset), unveraendert angewandt; aus Tabelle-9-CSV gelesen.
+NULL = float(pd.read_csv(CAN/"prospective_null_baseline.csv", sep=";")["train_median_used"].iloc[0])
 
 bins = [("1-2 d",(y>1)&(y<=2)), ("2-4 d",(y>2)&(y<=4)), ("4-7 d",(y>4)&(y<=7)),
         ("2-7 d (aggregate)",(y>2)&(y<=7)), (">7 d",(y>7))]
