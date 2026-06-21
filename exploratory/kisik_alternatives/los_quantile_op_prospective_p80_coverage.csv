@@ -1,0 +1,17 @@
+Schaetzer;Subgruppe;Coverage_%;Mittel_Vorhersage;Mittel_beob
+Oberarzt;gesamt;52.3;4.13;4.26
+Oberarzt;1-7d;56.6;3.19;2.86
+Oberarzt;>7d;25.9;9.91;12.92
+Oberarzt;>14d;10.0;10.45;18.88
+ML Mean;gesamt;39.9;2.31;4.26
+ML Mean;1-7d;46.4;2.31;2.86
+ML Mean;>7d;0.0;2.28;12.92
+ML Mean;>14d;0.0;2.19;18.88
+ML P50;gesamt;44.6;2.32;4.26
+ML P50;1-7d;51.8;2.32;2.86
+ML P50;>7d;0.0;2.35;12.92
+ML P50;>14d;0.0;2.18;18.88
+ML P80;gesamt;81.9;6.06;4.26
+ML P80;1-7d;95.2;6.06;2.86
+ML P80;>7d;0.0;6.05;12.92
+ML P80;>14d;0.0;6.23;18.88

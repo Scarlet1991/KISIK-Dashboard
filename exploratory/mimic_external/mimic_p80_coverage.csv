@@ -1,0 +1,17 @@
+Estimator;Subgroup;Coverage_%;Mean_pred;Mean_obs
+log1p_Mean;overall;58.5;3.52;4.42
+log1p_Mean;1-7d;68.0;3.09;2.62
+log1p_Mean;>7d;5.6;5.91;14.51
+log1p_Mean;>14d;0.5;6.7;23.61
+Quantile_P50;overall;49.7;3.05;4.42
+Quantile_P50;1-7d;58.0;2.7;2.62
+Quantile_P50;>7d;3.1;5.05;14.51
+Quantile_P50;>14d;0.0;5.68;23.61
+Quantile_P80;overall;77.7;5.3;4.42
+Quantile_P80;1-7d;87.4;4.63;2.62
+Quantile_P80;>7d;23.4;9.05;14.51
+Quantile_P80;>14d;4.0;10.21;23.61
+Hazard_Median;overall;60.3;3.48;4.42
+Hazard_Median;1-7d;70.5;3.13;2.62
+Hazard_Median;>7d;2.9;5.43;14.51
+Hazard_Median;>14d;0.0;6.07;23.61

@@ -186,6 +186,22 @@ python dashboard/build_dashboard_html.py
 
 ---
 
+## Exploratory extensions (NOT part of the manuscript)
+
+The [`exploratory/`](exploratory/) folder contains **post-manuscript exploratory analyses** that
+are deliberately kept separate from the manuscript pipeline above. Nothing in it feeds the
+manuscript (`reporting/KISIK_Frontiers_Manuskript_v2.docx`); the folders `modeling/`, `pipeline/`,
+`reporting/`, `figures/` and `dashboard/` remain the manuscript state.
+
+- `exploratory/mimic_external/` — external validation of the methodology on **MIMIC-IV 3.1**.
+- `exploratory/kisik_alternatives/` — **Tweedie / Gamma / hazard / quantile-P80** objectives on the AIN cohort.
+- `exploratory/routing/` — gated-ensemble **model routing** experiment and the **physician-as-regime-detector** analysis.
+
+See [`exploratory/README.md`](exploratory/README.md) for findings and reproducibility. Only
+aggregate outputs are included there (no patient-level data).
+
+---
+
 ## Privacy & ethics
 
 This repository contains **only code**. Never commit patient-level data. Any sharing of

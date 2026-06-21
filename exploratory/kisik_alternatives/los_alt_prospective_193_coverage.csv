@@ -1,0 +1,21 @@
+Estimator;Subgroup;Coverage_%;Mean_pred;Mean_obs
+Oberarzt;1-2 d;65.7;2.15;1.57
+Oberarzt;2-4 d;64.7;3.79;2.94
+Oberarzt;4-7 d;19.4;4.09;5.43
+Oberarzt;>7 d;25.9;9.91;12.92
+ExtraTrees;1-2 d;100.0;4.03;1.57
+ExtraTrees;2-4 d;77.9;3.92;2.94
+ExtraTrees;4-7 d;12.9;4.17;5.43
+ExtraTrees;>7 d;0.0;4.97;12.92
+Quantile_P50;1-2 d;98.5;2.89;1.57
+Quantile_P50;2-4 d;42.6;2.97;2.94
+Quantile_P50;4-7 d;0.0;2.82;5.43
+Quantile_P50;>7 d;0.0;3.21;12.92
+Quantile_P80;1-2 d;100.0;5.83;1.57
+Quantile_P80;2-4 d;100.0;6.32;2.94
+Quantile_P80;4-7 d;71.0;6.35;5.43
+Quantile_P80;>7 d;7.4;6.82;12.92
+Hazard_Median;1-2 d;100.0;3.3;1.57
+Hazard_Median;2-4 d;75.0;3.53;2.94
+Hazard_Median;4-7 d;0.0;3.35;5.43
+Hazard_Median;>7 d;7.4;4.26;12.92

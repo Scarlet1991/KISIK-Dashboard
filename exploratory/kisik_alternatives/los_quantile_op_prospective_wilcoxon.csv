@@ -1,0 +1,3 @@
+Vergleich;Median_AE_ML;Median_AE_Arzt;p;ML_besser_%
+ML Mean vs Oberarzt;0.97;0.89;0.0003;36.8
+ML P50 vs Oberarzt;1.01;0.89;0.0007;36.8

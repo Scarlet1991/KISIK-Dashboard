@@ -1,0 +1,58 @@
+prefix;itemid;label
+vital;220045;Heart Rate
+vital;220210;Respiratory Rate
+vital;220277;O2 saturation pulseoxymetry
+vital;223761;Temperature Fahrenheit
+vital;223762;Temperature Celsius
+vital;220179;Non Invasive Blood Pressure systolic
+vital;220180;Non Invasive Blood Pressure diastolic
+vital;220181;Non Invasive Blood Pressure mean
+vital;220050;Arterial Blood Pressure systolic
+vital;220051;Arterial Blood Pressure diastolic
+vital;220052;Arterial Blood Pressure mean
+vital;220074;Central Venous Pressure
+lab;50902;Chloride
+lab;50983;Sodium
+lab;50912;Creatinine
+lab;50882;Bicarbonate
+lab;51006;Urea Nitrogen
+lab;50971;Potassium
+lab;50868;Anion Gap
+lab;51221;Hematocrit
+lab;50931;Glucose
+lab;51265;Platelet Count
+lab;51301;White Blood Cells
+lab;51222;Hemoglobin
+lab;51279;Red Blood Cells
+lab;51250;MCV
+lab;51249;MCHC
+lab;51248;MCH
+lab;51277;RDW
+lab;50960;Magnesium
+lab;50970;Phosphate
+lab;50893;Calcium, Total
+lab;51274;PT
+lab;51237;INR(PT)
+lab;51275;PTT
+lab;50820;pH
+lab;50821;pO2
+lab;50802;Base Excess
+lab;50818;pCO2
+lab;50804;Calculated Total CO2
+lab;50813;Lactate
+lab;52172;RDW-SD
+proc;224275;20 Gauge
+proc;224277;18 Gauge
+proc;225752;Arterial Line
+proc;225792;Invasive Ventilation
+proc;225459;Chest X-Ray
+proc;225402;EKG
+proc;224263;Multi Lumen
+proc;229351;Foley Catheter
+proc;224274;22 Gauge
+proc;225469;OR Received
+proc;227194;Extubation
+proc;224276;16 Gauge
+proc;225966;Nasal Swab
+proc;221214;CT scan
+proc;225432;Transthoracic Echo

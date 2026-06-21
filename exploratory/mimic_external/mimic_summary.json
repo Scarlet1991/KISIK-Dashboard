@@ -1,0 +1,20 @@
+{
+  "n_stays": 74827,
+  "n_patients": 54550,
+  "n_train": 59799,
+  "n_test": 15028,
+  "n_features": 273,
+  "los_median": 2.5,
+  "los_mean": 4.4,
+  "los_std": 5.83,
+  "pct_gt7": 14.9,
+  "final_model": "XGBoost",
+  "train_median": 2.51,
+  "null_mae_holdout": 2.79,
+  "calib_slope": 1.391,
+  "calib_slope_ci": [
+    1.307,
+    1.476
+  ],
+  "citl": -0.927
+}
