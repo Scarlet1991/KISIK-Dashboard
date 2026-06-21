@@ -28,6 +28,26 @@ retro_m = pd.read_csv(CAN/"metrics_retrospective.csv",   sep=";")
 pros_m  = pd.read_csv(CAN/"metrics_prospective_fair24h.csv", sep=";")
 feat    = pd.read_csv(CAN/"feature_importance.csv",      sep=";")
 pred_df = pd.read_csv(CAN/"metrics_prospective_fair24h_predictions.csv", sep=";")
+boot_ci = pd.read_csv(CAN/"prospective_bootstrap_ci.csv", sep=";")
+paired  = pd.read_csv(CAN/"prospective_paired_diff.csv",  sep=";")
+cal_sl  = pd.read_csv(CAN/"calibration_slopes.csv",       sep=";")
+cal_grp = pd.read_csv(CAN/"calibration_by_losgroup.csv",  sep=";")
+nullbl  = pd.read_csv(CAN/"prospective_null_baseline.csv", sep=";")
+by_month= pd.read_csv(CAN/"prospective_by_month.csv",      sep=";")
+by_qtr  = pd.read_csv(CAN/"prospective_by_quarter.csv",    sep=";")
+losbin  = pd.read_csv(CAN/"prospective_by_losbin.csv",     sep=";")
+def _lb(b): return losbin[losbin["LoS_bin"]==b].iloc[0]
+_nb_retro = nullbl.iloc[0]; _nb_pros = nullbl.iloc[1]   # row0 = retrospective, row1 = prospective
+def _wp(p): return "<0.001" if float(p)<0.001 else f"{float(p):.3f}"
+
+def _ci(method, metric):  # "Estimate [lo, hi]" from bootstrap CI table
+    r = boot_ci[(boot_ci["Method"]==method) & (boot_ci["Metric"]==metric)].iloc[0]
+    return f"{r['Estimate']:.2f} [{r['CI_low']:.2f}, {r['CI_high']:.2f}]"
+def _pair(sub):
+    r = paired[paired["Subgroup"]==sub].iloc[0]
+    p = r["Wilcoxon_p"]; ps = "<0.001" if p<0.001 else f"{p:.3f}"
+    return r, f"{r['dAE_phys_minus_ML']:+.2f} [{r['CI_low']:.2f}, {r['CI_high']:.2f}]", ps
+PHYS="Senior physician"; ETF="Extra Trees (final model)"
 
 # ── Dynamic scalars from summary.json (auto-update with the cohort filter) ──────
 import json
@@ -195,8 +215,7 @@ def build_table1():
 # TITLE / ABSTRACT
 # ══════════════════════════════════════════════════════════════════════════════
 title("Early prediction of intensive-care length of stay from the first 24 hours: "
-      "a leakage-controlled development study with prospective benchmarking against "
-      "senior-physician judgement")
+      "model development and prospective benchmarking against senior-physician judgement")
 small("Original Research prepared for the Frontiers Research Topic “MedicineAI: Advancing the Synergy of "
       "Medicine and AI — From Data to Clinical Impact.” Reported in accordance with the TRIPOD+AI statement "
       "(Collins et al., 2024). Author names, affiliations, ORCID and corresponding author to be inserted.")
@@ -206,35 +225,40 @@ p = doc.add_paragraph(); run(p,"¹ Department of Anaesthesiology and Intensive C
 
 h1("Abstract")
 labeled("Background:","Accurate early prediction of intensive care unit (ICU) length of stay (LOS) could support "
-    "capacity planning and patient flow. Machine-learning (ML) studies frequently report over-optimistic performance "
-    "because of information leakage from whole-stay feature aggregation, and models are rarely benchmarked "
-    "prospectively against the clinicians they are intended to support.")
+    "capacity planning and patient flow. Machine-learning (ML) models for ICU LOS are rarely benchmarked "
+    "prospectively against the clinicians they are intended to support, and reported accuracy is often given without "
+    "any measure of uncertainty or calibration.")
 labeled("Methods:",f"We conducted a single-centre study using routine data from a tertiary ICU service, restricted to "
     f"the three anaesthesiology-run intensive care units (codes IZ21, IZ31, IZ32). A retrospective "
     f"development cohort of {N_STAYS} ICU stays ({N_PAT} patients; May 2017–Jul 2024) was used to train and select "
-    "a final model. Eighty-four leakage-free predictors were derived from the first 24 hours after ICU admission "
-    "only; any earlier pipeline that aggregated whole-stay measurements was identified as leakage and corrected. "
-    "Four candidate models — ridge regression, random forest, extremely randomised trees (Extra Trees), and "
-    "gradient boosting (XGBoost) — were fitted on a log1p-transformed LOS target with identical preprocessing. "
-    "Hyperparameters were optimised by 4-fold patient-grouped cross-validation. The model with the lowest "
-    "cross-validated mean absolute error (MAE) was pre-specified as the final model before any holdout data were "
-    f"seen. The identical model was then evaluated prospectively against senior-physician estimates in {N_PROS} completed "
-    "matched stays (is_open = 0; LOS > 1 day; Oct 2024–Jan 2026).")
-labeled("Results:",f"Replacing whole-stay features with strict 24-hour equivalents reduced apparent R² from ≈ 0.58 to "
-    f"≈ 0.36, confirming the leakage. On the patient-grouped holdout (n = {N_TEST}), the four models performed "
+    "a final model. Eighty-four predictors were derived from the first 24 hours after ICU admission only (the "
+    "intended prediction time point). Four candidate models — ridge regression, random forest, extremely "
+    "randomised trees (Extra Trees), and gradient boosting (XGBoost) — were fitted on a log1p-transformed LOS "
+    "target with identical preprocessing. Hyperparameters were optimised by 4-fold patient-grouped "
+    "cross-validation, and the model with the lowest cross-validated mean absolute error (MAE) was pre-specified "
+    f"as the final model. It was then evaluated prospectively against senior-physician estimates in {N_PROS} completed "
+    "matched stays (Oct 2024–Jan 2026). Because the model and the physician assessed the same patients, the "
+    "comparison used a paired, patient-level bootstrap (5,000 resamples) for 95% confidence intervals (CIs) of MAE, "
+    "RMSE, bias and R², the paired difference in absolute error, and a Wilcoxon signed-rank test; calibration was "
+    "assessed by calibration-in-the-large, calibration slope, observed-versus-predicted plots and LOS-group analysis.")
+labeled("Results:",f"On the patient-grouped holdout (n = {N_TEST}), the four models performed "
     f"near-identically (MAE {MAE_LO}–{MAE_HI} days; R² {R2_LO}–{R2_HI}); {FINAL_DISP} was selected as the final model "
-    f"(test MAE {ET_MAE} days, R² {ET_R2}). All models showed systematic underestimation (mean bias {BIAS_NEG} to {BIAS_POS} days). "
-    "Prospectively, first-24-hour features were reconstructed from raw records (86% of the 84 features available; "
-    f"median per-stay completeness 77%). The senior physician outperformed all ML models (MAE {P_OB_MAE} vs {P_ET_MAE} days, "
-    f"R² {P_OB_R2} vs {P_ET_R2} for Extra Trees; Spearman ρ {_rho_ob} vs {_rho_et}). The physician advantage was largest in long stays "
-    "(> 7 days, n = 27: physician MAE 6.51 vs XGBoost 7.16 days). Extra Trees was nearly unbiased prospectively "
-    f"(mean bias {P_ET_BIAS} days). The strongest predictors were early ICU complex-treatment procedure codes.")
-labeled("Conclusion:","Under strict leakage control and prospective clinician benchmarking, 24-hour ML models did not "
-    "match senior-physician judgement for ICU LOS prediction. Transparent handling of the prediction time point and "
-    "direct clinician comparison are essential prerequisites before deployment.")
+    f"(test MAE {ET_MAE} days, R² {ET_R2}). Prospectively, first-24-hour features were reconstructed from raw records "
+    f"(86% of the 84 features available; median per-stay completeness 77%). The senior physician outperformed the "
+    f"final model on MAE ({_ci(PHYS,'MAE')} vs {_ci(ETF,'MAE')} days) and R² ({_ci(PHYS,'R2')} vs {_ci(ETF,'R2')}). The "
+    f"paired difference in MAE was {_pair('All (n=193)')[1]} days in the physician's favour (Wilcoxon p {_pair('All (n=193)')[2]}) "
+    f"and remained significant when long stays were excluded (1–7 days, n = 166: {_pair('1-7 days')[1]} days, "
+    f"p {_pair('1-7 days')[2]}), so the advantage is not driven by a few extreme long-stayers. Calibration analysis "
+    f"showed the model compressed its predictions (calibration slope {cal_sl[cal_sl.Method==ETF].iloc[0]['Calib_slope']:.2f}): it "
+    f"over-predicted very short stays (1–2 days, bias +2.5 days) and severely under-predicted long stays "
+    f"(> 7 days, bias −7.9 days), whereas the physician tracked both extremes more closely.")
+labeled("Conclusion:","Under prospective, clinician-benchmarked validation with paired uncertainty quantification, a "
+    "24-hour ML model did not match senior-physician judgement for ICU LOS prediction; the physician's advantage was "
+    "statistically robust and the model's predictions were poorly calibrated at both extremes of the LOS range. "
+    "Direct clinician benchmarking, uncertainty quantification and calibration are essential before deployment.")
 p = doc.add_paragraph(); run(p,"Keywords: ",bold=True)
-run(p,"intensive care unit; length of stay; clinical prediction model; machine learning; data leakage; "
-    "prospective validation; TRIPOD+AI; calibration; clinical decision support")
+run(p,"intensive care unit; length of stay; clinical prediction model; machine learning; prospective validation; "
+    "calibration; bootstrap confidence intervals; TRIPOD+AI; clinical decision support")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1 INTRODUCTION
@@ -246,19 +270,19 @@ body("Intensive care is among the most resource-intensive segments of hospital c
     "communication with patients and families. Established severity scores (APACHE II, SAPS II, SOFA) were designed "
     "primarily to predict in-hospital mortality and explain only a limited portion of LOS variance [1–3].")
 body("Machine learning (ML) has been applied widely to ICU LOS prediction [4–6], frequently with encouraging "
-    "reported accuracy. Two systemic problems undermine clinical credibility. First, information leakage — the "
-    "inadvertent inclusion of information unavailable at the intended prediction time — inflates apparent performance "
-    "and is a leading cause of over-optimism and irreproducibility in clinical ML research [7]. For a temporal "
-    "outcome such as LOS, features aggregated over the entire admission are especially hazardous: their values "
-    "encode how long the patient stayed and are thus mechanically correlated with the outcome. Second, models are "
-    "almost invariably evaluated against historical labels, rarely against the clinicians whose judgement they are "
-    "meant to augment or replace. The TRIPOD+AI reporting standard therefore emphasises a clearly defined "
-    "prediction time point and rigorous, ideally prospective, evaluation [8,9].")
-body("We address both shortcomings in a single study: (i) we explicitly quantify the performance inflation caused "
-    "by whole-stay leakage; (ii) we restrict all predictors to the first 24 hours after admission; (iii) we "
-    "pre-specify a single final model through patient-grouped cross-validation; and (iv) we compare that model "
-    "prospectively and directly against documented senior-physician estimates. The guiding clinical question is "
-    "whether a data-driven 24-hour model can match an experienced clinician at the moment of decision.")
+    "reported accuracy. Yet two issues limit clinical credibility. First, models are almost invariably evaluated "
+    "against historical labels rather than against the clinicians whose judgement they are meant to augment or "
+    "replace, so it remains unclear whether they add value at the point of decision. Second, performance is often "
+    "reported as a single point estimate (e.g. mean absolute error) without any measure of uncertainty or "
+    "calibration, which is insufficient to judge clinical usefulness and reproducibility [7]. The TRIPOD+AI "
+    "reporting standard therefore emphasises a clearly defined prediction time point, prospective evaluation, and "
+    "explicit reporting of uncertainty and calibration [8,9].")
+body("We address these issues in a single study: (i) we restrict all predictors to the first 24 hours after "
+    "admission (the intended early-prediction time point); (ii) we pre-specify a single final model through "
+    "patient-grouped cross-validation; (iii) we benchmark that model prospectively and directly against documented "
+    "senior-physician estimates in the same patients; and (iv) we quantify the uncertainty of that comparison with "
+    "a paired, patient-level bootstrap and characterise model calibration across the LOS range. The guiding clinical "
+    "question is whether a data-driven 24-hour model can match an experienced clinician at the moment of decision.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2 MATERIALS AND METHODS
@@ -313,20 +337,18 @@ body(f"Because ICU LOS is strictly positive and strongly right-skewed (retrospec
 
 h2("2.4  Predictors and the 24-hour window")
 body("All predictors were derived strictly from the first 24 hours after ICU admission (from admission timestamp "
-    "to admission + 24 h). This temporal restriction is the central leakage safeguard: no measurement, "
-    "procedure or device record made after the 24-hour prediction window can enter any model.")
-body("From 104 candidate features, 84 were available as genuine first-24-hour variables and were retained. "
-    "Twenty candidates were excluded because no leakage-free 24-hour version could be constructed under the "
-    "exact feature name. Critically, an earlier version of the pipeline had silently substituted whole-stay "
-    "aggregates for 15 of these (e.g. a laboratory summary spanning the entire admission in place of the "
-    "24-hour value); this constitutes leakage and was removed entirely (no fallback to whole-stay values). "
+    "to admission + 24 h). This reflects the intended early-prediction time point: only information available to "
+    "a clinician within the first day of the stay can enter any model, so the predictions are clinically realistic "
+    "for early bed and step-down planning.")
+body("From 104 candidate features, 84 were available as first-24-hour variables and were retained; 20 candidates "
+    "were excluded because they could not be constructed within the 24-hour window under the exact feature name. "
     "The 84 retained features span six domains (Table 3): laboratory values (30), admission diagnoses (24), "
     "procedures (13), vascular access devices (8), vital signs (6) and demographic/admission context (3).")
 
 h2("2.5  Handling of patients with multiple stays and multiple records within the window")
 body(f"The analysis unit is the ICU stay, not the patient or the hospital encounter. Patients with more than "
     f"one ICU stay (n = {N_GT1} patients; {PCT_GT1}% of patients) contribute each stay as a separate prediction "
-    "instance. To prevent optimistic bias from information leakage across stays of the same patient, every "
+    "instance. To prevent optimistic bias from the same patient appearing in both training and evaluation, every "
     "train/test split and every cross-validation fold was grouped by patient identifier (GroupShuffleSplit "
     "and GroupKFold, respectively). This ensures that all stays from a given patient appear in either training "
     "or evaluation, never in both simultaneously.")
@@ -343,7 +365,8 @@ body("Within the 24-hour window, most modalities contribute multiple records for
 h2("2.6  Missing data and preprocessing pipeline")
 body("Missing values are expected in clinical data, particularly for analytes not routinely measured for every "
     "patient. All imputation is performed inside cross-validation — fitted on the training fold only and "
-    "applied to the held-out fold — to prevent imputation leakage. The preprocessing pipeline is as follows:")
+    "applied to the held-out fold — so that no information from the held-out data influences preprocessing. "
+    "The preprocessing pipeline is as follows:")
 body("(1) Numeric features: median imputation (SimpleImputer, strategy='median'), using the training-fold "
     "median. For binary features derived from procedure/access/diagnosis presence, a missing value indicates "
     "the feature was not documented in the window and is treated as absent (0) rather than truly missing; "
@@ -407,6 +430,16 @@ body("Calibration — the alignment of predicted magnitudes with observed values
     "positive value indicates systematic overestimation and a negative value systematic underestimation. "
     "For Spearman ρ, the prospective predictions CSV is used directly; for retrospective ρ this cannot be "
     "computed from published summary statistics and is therefore not reported.")
+body("Uncertainty and clinician comparison (prospective cohort). Because the senior physician and the final "
+    "model assessed the identical patients, 95% confidence intervals for MAE, RMSE, bias and R² were obtained "
+    "by a paired, patient-level bootstrap with 5,000 resamples (percentile method; in each replicate the same "
+    "resampled patients were used for every predictor). The paired difference in absolute error (physician "
+    "minus model) was bootstrapped likewise, and the paired absolute errors were additionally compared with a "
+    "Wilcoxon signed-rank test; both were repeated within LOS subgroups (1–7 and > 7 days) to test whether the "
+    "comparison was driven by extreme long-stayers. Calibration was assessed by calibration-in-the-large (mean "
+    "bias), the calibration slope (ordinary least-squares regression of observed on predicted LOS, with ideal "
+    "slope 1.0 and bootstrap 95% CI), observed-versus-predicted plots with a quantile-binned calibration curve, "
+    "the distribution of predictions, and performance stratified across LOS groups (1–2, 2–4, 4–7, > 7 days).")
 
 h2("2.10  Interpretability")
 body("Predictor importance for the final model (extra trees) was assessed by permutation importance on "
@@ -439,17 +472,7 @@ body("Retrospective and prospective cohort characteristics are compared in Table
     "two periods; SOFA documentation was sparse in both (1–2%). Cross-cohort severity comparison was therefore "
     "not feasible and scores are reported descriptively only.")
 
-h2("3.2  Effect of leakage control")
-body("An earlier version of the pipeline had silently substituted whole-stay aggregates for 15 features that "
-    "lacked an exact 24-hour counterpart. To quantify the resulting inflation in the present cohort, we "
-    "replaced the first-24-hour laboratory, vital-sign, procedure and vascular-access predictors with their "
-    "whole-stay aggregate equivalents (51 of the 84 predictors) and refitted the final model: apparent "
-    "performance rose from R² ≈ 0.36 (strictly leakage-free 24-hour features) to R² ≈ 0.58 (whole-stay "
-    "aggregates), i.e. ΔR² ≈ 0.22, with a spuriously lower MAE (2.20 vs 2.75 days). Because LOS is a temporal "
-    "outcome, whole-stay summaries mechanically encode part of the answer. All results below use the "
-    "leakage-free 84-feature set exclusively.")
-
-h2("3.3  Model development and selection")
+h2("3.2  Model development and selection")
 body(f"In 4-fold patient-grouped cross-validation on the training set, the three tree ensembles were "
     f"near-identical and clearly outperformed the linear baseline (Table 4): CV-MAE {CV_LO}–2.845 days "
     f"(Extra Trees, Random Forest, XGBoost) vs {CV_HI} days (Ridge). Extra Trees had the lowest CV-MAE "
@@ -464,7 +487,7 @@ body(f"On the held-out test set (n = {N_TEST} stays), all four models again perf
     "harder to predict. Random forest and XGBoost were statistically indistinguishable from Extra Trees "
     "on the holdout; ridge regression was consistently the weakest model.")
 
-h2("3.4  Most important predictors")
+h2("3.3  Most important predictors")
 body("Permutation importance for the final model (Extra Trees) on the holdout test set is shown in Table 6 "
     "and Figure 2. By a large margin, the strongest single predictor was the intensive-care "
     "complex-treatment procedure code (OPS 8-98f.0, base module): permuting this feature increased MAE "
@@ -477,7 +500,7 @@ body("Permutation importance for the final model (Extra Trees) on the holdout te
     "the three AIN units are clinically similar. In summary, procedure burden and monitoring intensity in the "
     "first 24 hours dominate LOS prediction; patient demographics and diagnoses contribute modestly.")
 
-h2("3.5  Prospective evaluation against the senior physician (n = 193)")
+h2("3.4  Prospective evaluation against the senior physician (n = 193)")
 body("Prospective features were rebuilt from raw source tables (laboratory, vital signs, procedures, "
     "vascular access, diagnoses) using the identical 24-hour window, feature names and aggregation "
     "functions as in development. This yielded genuine values for 72 of the 84 predictors (86%); the "
@@ -498,23 +521,88 @@ body("In subgroup analyses, the physician advantage was most pronounced in short
     "were clearly worse than the physician (physician MAE 6.51 vs the best model, XGBoost, 7.16 days; Extra "
     "Trees 7.95 days), underscoring that the clinically important long-stay range remains the hardest for the "
     "models and the area of greatest physician advantage.")
+body(f"Importantly, the apparently respectable prospective MAE must be read against a null model. A trivial "
+    f"baseline that predicts the retrospective median LOS ({nullbl['LoS_median'].iloc[0]:.2f} days) for every "
+    f"patient achieved an MAE of {_nb_pros['Null_MAE_retroMed']:.2f} days prospectively — actually lower than the "
+    f"final model ({_nb_pros['Model_MAE']:.2f} days). The same null model on the retrospective holdout gave an MAE "
+    f"of {_nb_retro['Null_MAE_retroMed']:.2f} days, which the model clearly beat ({_nb_retro['Model_MAE']:.2f} days). "
+    f"In other words, the model added genuine skill retrospectively but none prospectively. The reason the "
+    f"prospective MAE does not deteriorate further is that the prospective outcome simply varies less: the "
+    f"completed-stay prospective cohort has a much narrower LOS distribution (SD {_nb_pros['LoS_std']:.2f} vs "
+    f"{_nb_retro['LoS_std']:.2f} days; {_nb_pros['pct_gt7d']:.0f}% vs {_nb_retro['pct_gt7d']:.0f}% of stays > 7 days; "
+    f"maximum 27 vs 77 days; Table 9). Because MAE scales with the spread of the outcome, the lower prospective "
+    f"MAE reflects an easier cohort rather than better prediction — a discrepancy that R² (which fell to "
+    f"{P_ET_R2}) and the calibration analysis make explicit.")
 
-h2("3.6  Calibration and long-stay behaviour")
-body("Calibration describes how well predicted LOS magnitudes agree with observed values, independent "
-    "of discrimination. Figures 3–5 show observed vs predicted ICU LOS for the final model "
-    "(Extra Trees) on the retrospective holdout, the prospective cohort, and the senior physician "
-    "(all capped at 20 days for legibility; metrics are computed on the full range).")
-body(f"Retrospectively, all models show systematic underestimation: mean bias ranges from {BIAS_POS} days "
-    f"(XGBoost) to {BIAS_NEG} days (Ridge). The hexbin plot (Figure 3) makes the mechanism visible: for "
-    "short stays (< 5 days) prediction scatter is concentrated near the identity line, but for stays "
-    "beyond about one week the model predictions flatten and revert towards the population mean, "
-    "producing a characteristic 'fanning' pattern below the identity line.")
-body(f"Prospectively, Extra Trees is nearly unbiased overall ({P_ET_BIAS} days), as is the physician "
-    f"({P_OB_BIAS} days); the small biases for both suggest calibration-in-the-large is adequate at the "
-    f"prospective case-mix level. XGBoost shows moderate overestimation (+0.65 days) and Ridge severe "
-    f"overestimation (+5.80 days). The long-stay hexbin (Figure 4) confirms that the model underestimates for "
-    f"observed LOS beyond ~ 10 days, mirroring the retrospective pattern. The physician (Figure 5) maintains "
-    f"better tracking of long stays, consistent with the subgroup MAE advantage (Section 3.5).")
+h2("3.5  Uncertainty of the prospective comparison (paired bootstrap)")
+body("Because the senior physician and the final model assessed the identical 193 patients, the comparison "
+    "was quantified with a paired, patient-level bootstrap (5,000 resamples; the same resampled patients were "
+    "used for both predictors in each replicate). Point estimates with 95% confidence intervals (CIs) are "
+    "given in Table 7.")
+body(f"On MAE the physician was more accurate than the final model: {_ci(PHYS,'MAE')} vs {_ci(ETF,'MAE')} days. "
+    f"The paired difference in MAE (physician minus model) was {_pair('All (n=193)')[1]} days, and the entire "
+    f"95% CI lay below zero; the Wilcoxon signed-rank test on paired absolute errors agreed (p {_pair('All (n=193)')[2]}; "
+    f"Figure 8). The physician also had a higher R² ({_ci(PHYS,'R2')} vs {_ci(ETF,'R2')}), while both methods were "
+    f"essentially unbiased (physician bias {_ci(PHYS,'Bias')}, model {_ci(ETF,'Bias')} days).")
+body(f"The advantage was not driven by a few extreme long-stayers. Restricted to stays of 1–7 days (n = 166), "
+    f"the physician retained a significant edge (paired ΔMAE {_pair('1-7 days')[1]} days, Wilcoxon p {_pair('1-7 days')[2]}). "
+    f"In the long-stay subgroup (> 7 days, n = 27) the point estimate still favoured the physician "
+    f"({_pair('>7 days')[1]} days) but with a wide CI crossing zero owing to the small subgroup size, although the "
+    f"Wilcoxon test remained significant (p {_pair('>7 days')[2]}).")
+
+h2("3.6  Calibration across the LOS range")
+body("Calibration describes how well predicted LOS magnitudes agree with observed values, independent of "
+    "discrimination. We report calibration-in-the-large (mean bias), the calibration slope (least-squares "
+    "regression of observed on predicted LOS; ideal = 1.0), observed-versus-predicted plots with a "
+    "quantile-binned calibration curve (Figure 6), the distribution of predictions (Figure 7), and "
+    "performance stratified by LOS group (Table 8).")
+body(f"At the cohort level both methods were well calibrated-in-the-large (mean bias near zero: model "
+    f"{cal_sl[cal_sl.Method==ETF].iloc[0]['CITL_mean_bias']:+.2f} days, physician "
+    f"{cal_sl[cal_sl.Method==PHYS].iloc[0]['CITL_mean_bias']:+.2f} days). The calibration slope, however, showed that "
+    f"the final model compressed its predictions into a narrow range (slope "
+    f"{cal_sl[cal_sl.Method==ETF].iloc[0]['Calib_slope']:.2f} [{cal_sl[cal_sl.Method==ETF].iloc[0]['Slope_CI_low']:.2f}, "
+    f"{cal_sl[cal_sl.Method==ETF].iloc[0]['Slope_CI_high']:.2f}]): predicted values clustered between roughly 3 and 6 days "
+    f"largely irrespective of the true LOS (Figure 7), while the physician's estimates spanned a wider range.")
+body(f"The LOS-group analysis (Table 8) exposed the clinical consequence: the model substantially "
+    f"over-predicted very short stays "
+    f"(1–2 days: bias {cal_grp[cal_grp['LoS group']=='1-2 d'].iloc[0]['Bias_ML']:+.2f} days) and severely "
+    f"under-predicted long stays "
+    f"(> 7 days: bias {cal_grp[cal_grp['LoS group']=='>7 d'].iloc[0]['Bias_ML']:+.2f} days), whereas the physician "
+    f"tracked both extremes far more closely "
+    f"(1–2 days {cal_grp[cal_grp['LoS group']=='1-2 d'].iloc[0]['Bias_phys']:+.2f}; "
+    f"> 7 days {cal_grp[cal_grp['LoS group']=='>7 d'].iloc[0]['Bias_phys']:+.2f} days). The near-zero average bias "
+    f"therefore masks large, offsetting errors at the two ends of the LOS distribution — exactly the ranges most "
+    f"relevant to capacity planning. The retrospective holdout showed the same regression-to-the-mean pattern "
+    f"(mean bias {BIAS_POS} to {BIAS_NEG} days across models; Figure 3), and the prospective hexbins "
+    f"(Figures 4–5) confirm that the physician tracks long stays better than the model.")
+body(f"To locate where, if anywhere, the model adds value, we compared the senior physician, the final model and "
+    f"the null model within bins of the actual LOS (Table 11, Figure 10). The pattern is informative. At the "
+    f"extremes the physician was clearly best (1–2 days: MAE {_lb('1-2 d')['MAE_physician']:.2f} vs model "
+    f"{_lb('1-2 d')['MAE_model']:.2f}; > 7 days: {_lb('>7 d')['MAE_physician']:.2f} vs {_lb('>7 d')['MAE_model']:.2f}), "
+    f"reflecting the model's compressed predictions. The model had a genuine advantage only in the 4–7-day band "
+    f"(n = {int(_lb('4-7 d')['n'])}), where it beat both the physician "
+    f"(MAE {_lb('4-7 d')['MAE_model']:.2f} vs {_lb('4-7 d')['MAE_physician']:.2f}, "
+    f"p {_lb('4-7 d')['p_model_vs_phys']}) and the null model "
+    f"({_lb('4-7 d')['MAE_model']:.2f} vs {_lb('4-7 d')['MAE_null']:.2f}, p {_lb('4-7 d')['p_model_vs_null']}). "
+    f"Across the broader 2–7-day range (n = {int(_lb('2-7 d (aggregate)')['n'])}), however, the model was only "
+    f"numerically better than the physician (MAE {_lb('2-7 d (aggregate)')['MAE_model']:.2f} vs "
+    f"{_lb('2-7 d (aggregate)')['MAE_physician']:.2f}, p {_lb('2-7 d (aggregate)')['p_model_vs_phys']}) and did not "
+    f"beat the null model ({_lb('2-7 d (aggregate)')['MAE_null']:.2f}). In the 2–4-day bin a constant predictor was "
+    f"in fact best, because the bin sits at the constant value. (Stratifying by the true outcome favours predictors "
+    f"whose output concentrates in a given bin, so these within-bin comparisons should be read together with the "
+    f"overall calibration: the model's usefulness is confined to a narrow mid-range rather than being general.)")
+
+h2("3.7  Temporal stability of the physician advantage")
+body(f"The senior-physician estimates were collected over a six-month window (July–December 2025). To verify that "
+    f"the physician advantage was not confined to a single period, we compared the senior physician with the final "
+    f"model across calendar months and quarters (Table 10, Figure 9). The physician had the lower MAE in every "
+    f"month and in both quarters; the advantage was statistically significant in the first quarter "
+    f"(2025-Q3, n = {int(by_qtr.iloc[0]['n'])}: ΔMAE {by_qtr.iloc[0]['dMAE_phys_minus_model']:+.2f} days, "
+    f"Wilcoxon p {_wp(by_qtr.iloc[0]['Wilcoxon_p'])}) and the second "
+    f"(2025-Q4, n = {int(by_qtr.iloc[1]['n'])}: {by_qtr.iloc[1]['dMAE_phys_minus_model']:+.2f} days, "
+    f"p {_wp(by_qtr.iloc[1]['Wilcoxon_p'])}). The gap narrowed towards the end of the window (the two methods "
+    f"essentially converged in November–December), but the model never outperformed the physician in any segment. "
+    f"The physician advantage is therefore temporally stable rather than an artefact of one period.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 4 DISCUSSION
@@ -522,28 +610,39 @@ body(f"Prospectively, Extra Trees is nearly unbiased overall ({P_ET_BIAS} days),
 h1("4  Discussion")
 body("In a large single-centre cohort we developed, pre-specified and prospectively validated an ICU LOS "
     "model from the first 24 hours. Three findings stand out.")
-body("First, leakage from whole-stay feature aggregation materially inflated apparent performance "
-    "(R² ≈ 0.36 → ≈ 0.58 when whole-stay aggregates were substituted in). This reinforces recent warnings [7] "
-    "and underscores that TRIPOD+AI's requirement for a clearly defined prediction time point is not merely "
-    "formal: the choice of feature aggregation window can raise the reported R² by more than half without any "
-    "real improvement in clinical utility.")
-body("Second, under strict leakage control, the three tree-ensemble families performed indistinguishably. "
-    "The choice between random forest, extra trees and XGBoost was immaterial — a finding that "
+body("First, the three tree-ensemble families performed indistinguishably both in cross-validation and on the "
+    "holdout. The choice between random forest, extra trees and XGBoost was immaterial — a finding that "
     "simplifies model selection in practice. Ridge regression was consistently the weakest model both "
     "retrospectively and, dramatically, prospectively (R² −22.0), which can be attributed to the "
     "regression-to-the-mean property of linear models when features shift in distribution across time "
     "periods.")
-body("Third, the experienced senior physician outperformed every model prospectively, with the advantage "
-    "largest in long stays. Long-staying patients are precisely those for whom accurate early prediction "
-    "matters most for planning. Physicians integrate contextual knowledge — anticipated surgical "
-    "trajectories, potential complications, bed-management pressures — not captured in structured "
-    "24-hour tabular data.")
-body(f"Regarding calibration: Extra Trees was essentially unbiased prospectively ({P_ET_BIAS} days) but showed "
-    f"systematic underestimation retrospectively ({ET_BIAS} days), likely because right-skewed LOS "
-    "distributions create training targets in which very long stays are underrepresented and pull "
-    "predictions toward the centre. The log1p transformation mitigates but does not fully eliminate "
-    "this. Calibration recalibration (intercept adjustment or isotonic regression) could be applied "
-    "prospectively but was not pursued here.")
+body(f"Second, the experienced senior physician outperformed every model prospectively, and the paired bootstrap "
+    f"confirmed that this advantage was statistically robust rather than a chance result: the 95% CI for the "
+    f"physician-minus-model MAE difference ({_pair('All (n=193)')[1]} days) excluded zero and the Wilcoxon test "
+    f"was highly significant (p {_pair('All (n=193)')[2]}). Crucially, the advantage was not an artefact of a few "
+    f"extreme long-stayers — it persisted when the analysis was restricted to 1–7-day stays (n = 166) — nor of a "
+    f"single time period: the physician had the lower MAE in every month and both quarters of the six-month "
+    f"estimate window (Section 3.7). Physicians integrate contextual knowledge — anticipated surgical "
+    f"trajectories, potential complications, bed-management pressures — not captured in structured 24-hour "
+    f"tabular data.")
+body(f"Third, the prospective MAE of the model must not be read at face value. A trivial null model that always "
+    f"predicts the retrospective median LOS achieved a lower prospective MAE ({_nb_pros['Null_MAE_retroMed']:.2f} "
+    f"days) than the final model ({_nb_pros['Model_MAE']:.2f} days), whereas retrospectively the model clearly beat "
+    f"the same null ({_nb_retro['Model_MAE']:.2f} vs {_nb_retro['Null_MAE_retroMed']:.2f} days). The model thus "
+    f"added real skill in development but essentially none prospectively; the deceptively low prospective MAE only "
+    f"reflects the narrower LOS distribution of completed stays (MAE scales with outcome spread). Consistent with "
+    f"this, although the final model was essentially unbiased on average prospectively ({P_ET_BIAS} days), this "
+    f"single number was misleading: the calibration slope (≈ {cal_sl[cal_sl.Method==ETF].iloc[0]['Calib_slope']:.2f}) "
+    f"and LOS-group analysis revealed a compressed prediction range that over-predicted very short stays "
+    f"(1–2 days: +{cal_grp[cal_grp['LoS group']=='1-2 d'].iloc[0]['Bias_ML']:.1f} days) and under-predicted long "
+    f"stays (> 7 days: {cal_grp[cal_grp['LoS group']=='>7 d'].iloc[0]['Bias_ML']:.1f} days). This regression "
+    f"towards the centre — driven by a right-skewed LOS distribution in which very long stays are "
+    f"underrepresented — is exactly why average bias and MAE alone are inadequate, and why uncertainty "
+    f"quantification and calibration reporting are essential. Post-hoc recalibration (intercept adjustment or "
+    f"isotonic regression) could mitigate but was not pursued here. The one bright spot was a narrow mid-range "
+    f"(actual LOS 4–7 days), where the model significantly outperformed both the physician and the null model "
+    f"(Section 3.6, Table 11); this localised skill could, in principle, be exploited for triage of intermediate "
+    f"stays, but it does not generalise to the short- and long-stay ranges that matter most for capacity planning.")
 
 h2("4.1  Limitations")
 body(f"This is a single-centre study confined to three anaesthesiology-run ICUs; the absolute performance "
@@ -559,12 +658,13 @@ body(f"This is a single-centre study confined to three anaesthesiology-run ICUs;
     "characterised.")
 
 h1("5  Conclusion")
-body("Under strict leakage control and prospective, clinician-benchmarked validation, a machine-learning "
-    "model built from the first 24 hours of ICU data did not match experienced senior-physician judgement "
-    "for ICU LOS prediction. The clinician advantage was largest for long-staying patients, who represent "
-    "the greatest capacity-planning challenge. Realising clinical impact will require not only stronger "
-    "models but also transparent, prospective validation against the clinicians the technology is "
-    "intended to support.")
+body("Under prospective, clinician-benchmarked validation with paired uncertainty quantification, a "
+    "machine-learning model built from the first 24 hours of ICU data did not match experienced "
+    "senior-physician judgement for ICU LOS prediction. The clinician advantage was statistically robust and "
+    "largest for long-staying patients, who represent the greatest capacity-planning challenge, and the model's "
+    "predictions were poorly calibrated at both extremes of the LOS range. Realising clinical impact will "
+    "require not only stronger models but also transparent prospective validation — reported with uncertainty "
+    "and calibration — against the clinicians the technology is intended to support.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STATEMENTS / REFERENCES
@@ -667,7 +767,7 @@ small("Continuous variables: median [IQR], Mann-Whitney U test. Categorical vari
       "meaningful measure of cohort imbalance.")
 
 # ── Table 3: Predictor domains ────────────────────────────────────────────────
-cap(3, "Predictor domains: 84 leakage-free features, all from the first 24 hours after ICU admission.")
+cap(3, "Predictor domains: 84 features, all derived from the first 24 hours after ICU admission.")
 table([
     ["Domain","Features (n)","Aggregation","Examples"],
     ["Laboratory (first 24 h)","30",
@@ -685,9 +785,8 @@ table([
      "age (years), ICU stay number per patient, care-unit type (oebenekurz)"],
     ["Total","84","",""],
 ],[3.0,2.0,3.2,9.0], numcols_from=1)
-small("20 of 104 candidate features were excluded (no leakage-free 24-hour version available under "
-      "the exact column name); an earlier pipeline had substituted whole-stay aggregates for 15 of "
-      "these — that leakage has been removed. All feature values are derived from the window "
+small("20 of 104 candidate features were excluded because no first-24-hour version was available under "
+      "the exact column name. All feature values are derived from the window "
       "[admission timestamp, admission + 24 h]. Admission diagnoses are included if documented "
       "as principal diagnosis by 24 h post-admission. Care-unit type is one-hot encoded; the remaining "
       "85 features are numeric (binary 0/1 for presence/absence, or continuous for labs/vitals counts).")
@@ -794,6 +893,97 @@ small("Δ MAE = increase in mean absolute error (days) when the predictor's valu
       "OPS = Operationen- und Prozedurenschlüssel (German procedure classification). "
       "ICD-10 codes in parentheses.")
 
+# ── Table 7: Prospective uncertainty (paired bootstrap) ───────────────────────
+cap(7, f"Prospective performance with 95% confidence intervals from a paired, patient-level bootstrap "
+       f"(5,000 resamples; n = {N_PROS}): senior physician vs the final model (Extra Trees).")
+pa_r, pa_ci, pa_p = _pair("All (n=193)")
+p7_r, p7_ci, p7_p = _pair("1-7 days")
+table([
+    ["Metric","Senior physician","Extra Trees (final model)"],
+    ["MAE (days)",            _ci(PHYS,"MAE"),  _ci(ETF,"MAE")],
+    ["RMSE (days)",           _ci(PHYS,"RMSE"), _ci(ETF,"RMSE")],
+    ["Bias (days, pred − obs)",_ci(PHYS,"Bias"), _ci(ETF,"Bias")],
+    ["R² (unitless)",         _ci(PHYS,"R2"),   _ci(ETF,"R2")],
+],[5.5,5.0,5.0], numcols_from=1)
+small(f"Values are point estimate [95% CI] from a paired patient-level bootstrap (5,000 resamples; percentile "
+      f"method). Paired difference in MAE (physician − model): all stays {pa_ci} days (Wilcoxon signed-rank "
+      f"p {pa_p}); restricted to 1–7-day stays (n = {int(p7_r['n'])}) {p7_ci} days (p {p7_p}). A negative "
+      f"difference means the physician's absolute error was smaller; the advantage persists after excluding "
+      f"long stays, so it is not driven by extreme long-stayers. In each replicate the same resampled patients "
+      f"were used for both methods.")
+
+# ── Table 8: Calibration across the LOS range ─────────────────────────────────
+cap(8, f"Calibration of the final model (Extra Trees) vs the senior physician across LOS groups "
+       f"(prospective cohort, n = {N_PROS}).")
+crow = [["LOS group","n","Observed median (d)","MAE phys. (d)","Bias phys. (d)","MAE model (d)","Bias model (d)"]]
+for _, r in cal_grp.iterrows():
+    crow.append([str(r["LoS group"]), str(int(r["n"])), f"{r['Observed median (d)']:.1f}",
+                 f"{r['MAE_phys']:.2f}", f"{r['Bias_phys']:+.2f}", f"{r['MAE_ML']:.2f}", f"{r['Bias_ML']:+.2f}"])
+table(crow,[2.2,0.9,2.6,2.2,2.2,2.2,2.2], numcols_from=1)
+_es = cal_sl[cal_sl.Method==ETF].iloc[0]; _ps = cal_sl[cal_sl.Method==PHYS].iloc[0]
+small(f"Bias = mean(predicted − observed); positive = overestimation, negative = underestimation. "
+      f"Calibration-in-the-large (overall mean bias): model {_es['CITL_mean_bias']:+.2f} d, physician "
+      f"{_ps['CITL_mean_bias']:+.2f} d. Calibration slope (observed on predicted; ideal = 1.0): model "
+      f"{_es['Calib_slope']:.2f} [{_es['Slope_CI_low']:.2f}, {_es['Slope_CI_high']:.2f}], physician "
+      f"{_ps['Calib_slope']:.2f} [{_ps['Slope_CI_low']:.2f}, {_ps['Slope_CI_high']:.2f}]. The model over-predicts "
+      f"short stays and under-predicts long stays (compressed prediction range), so its near-zero overall bias "
+      f"masks large offsetting errors at the extremes of the LOS range.")
+
+# ── Table 9: Null-model baseline and LOS distribution ─────────────────────────
+cap(9, "Null-model baseline and ICU-LOS distribution: why the prospective MAE does not deteriorate. "
+       "The null model predicts the retrospective median LOS for every patient.")
+table([
+    ["Cohort","n","LOS mean / median (d)","LOS SD (d)","Stays > 7 d","Null-model MAE (d)","Final-model MAE (d)"],
+    ["Retrospective holdout (AIN)", f"{int(_nb_retro['n']):,}",
+     f"{_nb_retro['LoS_mean']:.2f} / {_nb_retro['LoS_median']:.2f}", f"{_nb_retro['LoS_std']:.2f}",
+     f"{_nb_retro['pct_gt7d']:.0f}%", f"{_nb_retro['Null_MAE_retroMed']:.2f}", f"{_nb_retro['Model_MAE']:.2f}"],
+    ["Prospective (n = 193)", f"{int(_nb_pros['n'])}",
+     f"{_nb_pros['LoS_mean']:.2f} / {_nb_pros['LoS_median']:.2f}", f"{_nb_pros['LoS_std']:.2f}",
+     f"{_nb_pros['pct_gt7d']:.0f}%", f"{_nb_pros['Null_MAE_retroMed']:.2f}", f"{_nb_pros['Model_MAE']:.2f}"],
+],[5.0,1.3,3.2,1.8,1.8,2.4,2.4], numcols_from=1)
+small(f"Null model = constant prediction of the retrospective median ({_nb_retro['LoS_median']:.2f} days) for every "
+      f"patient. Retrospectively the final model beats this null model "
+      f"({_nb_retro['Model_MAE']:.2f} vs {_nb_retro['Null_MAE_retroMed']:.2f} d), demonstrating genuine predictive "
+      f"skill; prospectively it does not ({_nb_pros['Model_MAE']:.2f} vs {_nb_pros['Null_MAE_retroMed']:.2f} d). "
+      f"The prospective MAE remains low only because the completed-stay cohort has a much narrower LOS "
+      f"distribution (lower SD, fewer long stays), and MAE scales with outcome spread; this is why R² and "
+      f"calibration, not MAE, reveal the loss of predictive value.")
+
+# ── Table 10: Model vs senior physician over time ─────────────────────────────
+cap(10, "Final model vs senior physician across calendar segments of the senior-estimate window "
+        "(July–December 2025). ΔMAE = MAE(physician) − MAE(model); negative favours the physician.")
+trow = [["Segment","n","Observed median LOS (d)","MAE physician (d)","MAE model (d)","ΔMAE (d)","Wilcoxon p"]]
+for _, r in by_month.iterrows():
+    trow.append([str(r["Segment"]), str(int(r["n"])), f"{r['LoS_median']:.2f}",
+                 f"{r['MAE_physician']:.2f}", f"{r['MAE_model']:.2f}",
+                 f"{r['dMAE_phys_minus_model']:+.2f}", _wp(r["Wilcoxon_p"])])
+for _, r in by_qtr.iterrows():
+    trow.append([f"{r['Segment']} (quarter)", str(int(r["n"])), f"{r['LoS_median']:.2f}",
+                 f"{r['MAE_physician']:.2f}", f"{r['MAE_model']:.2f}",
+                 f"{r['dMAE_phys_minus_model']:+.2f}", _wp(r["Wilcoxon_p"])])
+table(trow,[3.0,0.9,2.8,2.2,2.0,1.4,1.6], numcols_from=1)
+small("Monthly rows (n ≈ 27–38) followed by the two quarterly aggregates (bold periods). The physician had the "
+      "lower MAE in every month and both quarters; the difference was significant in 2025-Q3 and 2025-Q4. "
+      "Wilcoxon = signed-rank test on paired absolute errors. The two methods converged in November–December but "
+      "the model never outperformed the physician in any segment (Figure 9).")
+
+# ── Table 11: Three-way comparison by actual LOS bin ──────────────────────────
+cap(11, "Where does the model add value? Mean absolute error by bin of the ACTUAL ICU LOS (prospective, "
+        "n = 193): senior physician vs final model vs null model (constant = retrospective median, 2.9 days).")
+lrow = [["Actual-LOS bin","n","MAE physician (d)","MAE model (d)","MAE null (d)",
+         "Model − phys. (d, p)","Model − null (d, p)","Best"]]
+for _, r in losbin.iterrows():
+    lrow.append([str(r["LoS_bin"]), str(int(r["n"])), f"{r['MAE_physician']:.2f}", f"{r['MAE_model']:.2f}",
+                 f"{r['MAE_null']:.2f}", f"{r['dMAE_model_minus_phys']:+.2f} ({r['p_model_vs_phys']})",
+                 f"{r['dMAE_model_minus_null']:+.2f} ({r['p_model_vs_null']})", str(r["best"])])
+table(lrow,[2.6,0.8,2.2,2.0,1.8,2.7,2.7,1.6], numcols_from=1)
+small("Negative difference = model has the smaller error. p = Wilcoxon signed-rank test on paired absolute "
+      "errors. The model has a genuine, significant advantage over both the physician and the null model only in "
+      "the 4–7-day band; across the broader 2–7-day range it is not significantly better than the physician and "
+      "does not beat the null. A constant predictor appears best in 2–4 days only because that bin coincides with "
+      "the constant value. Caveat: stratifying by the true outcome favours predictors whose output concentrates "
+      "in a given bin; these results should be read together with the overall calibration (Table 8, Figure 6).")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # FIGURES
 # ══════════════════════════════════════════════════════════════════════════════
@@ -801,11 +991,14 @@ doc.add_paragraph().add_run("").add_break()
 h1("Figures")
 
 figure(CAN/"fig_model_comparison.png", 15.0)
-figcap(1, f"Mean absolute error (MAE, days) of the four candidate models on the retrospective holdout test "
-    f"set (n = {N_TEST} stays) and on the prospective cohort (n = {N_PROS} completed stays). The dashed line marks "
-    f"the senior-physician MAE. Lower is better. All four models and the senior physician are shown "
-    f"consistently. The near-identical performance of the tree ensembles retrospectively contrasts with "
-    f"the larger prospective spread; Ridge's instability under distributional shift is evident.")
+figcap(1, f"Model performance on the retrospective holdout test set (n = {N_TEST} stays) and the prospective "
+    f"cohort (n = {N_PROS} completed stays). (A) Mean absolute error (MAE, days; lower is better). (B) R² "
+    f"(higher is better; Ridge's prospective R² of −22 is off-scale and annotated ↓). Dashed red lines mark "
+    f"the senior physician. The two panels together show why MAE alone is misleading: for the final model "
+    f"(Extra Trees) the prospective MAE ({P_ET_MAE} d) is similar to the retrospective MAE ({ET_MAE} d), yet "
+    f"prospective R² collapses from {ET_R2} to {P_ET_R2} — the prospective case-mix has shorter stays, so absolute "
+    f"errors remain small while explanatory power is largely lost. The senior physician exceeds every model on "
+    f"prospective R². This loss is characterised further by the calibration analysis (Figures 6–8, Tables 7–8).")
 
 figure(CAN/"fig_importance.png", 15.0)
 figcap(2, "Permutation feature importance of the final model (Extra Trees) on the retrospective holdout "
@@ -835,6 +1028,40 @@ figcap(5, f"Prospective cohort — observed ICU LOS vs senior-physician estimate
     f"Calibration: mean bias {P_OB_BIAS} days (nearly unbiased). The physician shows better tracking of "
     f"long-stay patients than any ML model (visible as tighter scatter around the identity line "
     f"beyond ~ 5 days).")
+
+figure(CAN/"fig_calibration_pros.png", 15.5)
+figcap(6, f"Prospective calibration (n = {N_PROS}): observed vs predicted ICU LOS for the final model "
+    f"(Extra Trees, left) and the senior physician (right). Dashed red = identity (perfect calibration); "
+    f"green = calibration line (least-squares fit of observed on predicted); purple = quantile-binned observed "
+    f"means. The model's shallow, compressed prediction cloud (calibration slope "
+    f"{cal_sl[cal_sl.Method==ETF].iloc[0]['Calib_slope']:.2f}) contrasts with the physician's wider spread. "
+    f"CITL = calibration-in-the-large (overall mean bias).")
+
+figure(CAN/"fig_prediction_distribution.png", 13.0)
+figcap(7, f"Distribution of predicted ICU LOS for the final model (Extra Trees) and the senior physician vs the "
+    f"observed LOS distribution (prospective cohort, n = {N_PROS}). The model's predictions concentrate in a "
+    f"narrow ~ 3-6-day band, whereas observed LOS and the physician's estimates span a much wider range - the "
+    f"visual signature of the model's compressed prediction range (low calibration slope).")
+
+figure(CAN/"fig_bootstrap_diff_mae.png", 13.0)
+figcap(8, f"Paired bootstrap distribution (5,000 resamples) of the MAE difference, physician minus final model "
+    f"(Extra Trees), n = {N_PROS}. The observed difference ({_pair('All (n=193)')[1]} days) and its entire 95% CI "
+    f"lie below the no-difference line (0), indicating that the physician's lower MAE is statistically robust "
+    f"(Wilcoxon p {_pair('All (n=193)')[2]}).")
+
+figure(CAN/"fig_temporal_mae.png", 13.0)
+figcap(9, f"Prospective MAE over time: final model (Extra Trees) vs senior physician, by calendar month of the "
+    f"senior-estimate window (July–December 2025; n per month annotated). The physician (red) lies at or below "
+    f"the model (blue) in every month, confirming that the physician advantage is temporally stable rather than "
+    f"driven by a single period; the two converge only in November–December (Table 10).")
+
+figure(CAN/"fig_losbin_mae.png", 14.5)
+figcap(10, f"Prospective MAE by bin of the ACTUAL ICU LOS (n = {N_PROS}): senior physician (red), final model "
+    f"(Extra Trees, blue) and the null model (constant {nullbl['LoS_median'].iloc[0]:.1f} days, grey). The "
+    f"physician is best at the extremes (1–2 d and > 7 d). The model is lowest only in the 4–7-day band, where it "
+    f"significantly beats both the physician and the null model (Table 11). In 2–4 days a constant predictor is "
+    f"best because the bin coincides with the constant value. Stratifying by the true outcome favours predictors "
+    f"whose output concentrates in a bin, so this should be read alongside the overall calibration (Figure 6).")
 
 # ══════════════════════════════════════════════════════════════════════════════
 doc.save(str(OUT))

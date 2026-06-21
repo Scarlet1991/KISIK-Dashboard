@@ -24,3 +24,9 @@ venv/
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# === Published manuscript outputs (aggregate only — no patient-level data) ===
+# Patient-data extensions above stay blocked; only these specific outputs are tracked.
+!reporting/KISIK_Frontiers_Manuskript_v2.docx
+!reporting/figures/
+!reporting/figures/*.png

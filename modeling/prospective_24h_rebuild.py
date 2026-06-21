@@ -217,23 +217,42 @@ hexbin(yt,predf["pred_ExtraTrees"].values,"Prospective — ExtraTrees (fair 24 h
 hexbin(yt,predf["arzt"].values,"Prospective — senior physician",AN/"canonical"/"fig_hexbin_pros_oberarzt.png")
 print("Figuren aktualisiert: canonical/fig_hexbin_pros_ExtraTrees.png, fig_hexbin_pros_oberarzt.png")
 
-# ---- Modellvergleich (retro Holdout vs. faire prospektive n=193) + Senior-Linie, English ----
+# ---- Modellvergleich (retro Holdout vs. faire prospektive n=193): MAE + R^2 Panels, English ----
+# Zwei Panels, weil der MAE allein irrefuehrt: ExtraTrees prospektiv ~ retrospektiv, aber R^2 kollabiert.
 retro_csv=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
 resi=res.set_index("Modell")
-order=["Ridge","RandomForest","ExtraTrees","XGBoost"]
-rt=[float(retro_csv.loc[m,"MAE_days"]) for m in order]
-pp=[float(resi.loc[m,"MAE"]) for m in order]
-sen_mae=float(resi.loc["Oberarzt","MAE"])
+order=["Ridge","RandomForest","ExtraTrees","XGBoost"]; labels=["Ridge","Random forest","Extra Trees","XGBoost"]
+rt =[float(retro_csv.loc[m,"MAE_days"]) for m in order]; pp =[float(resi.loc[m,"MAE"]) for m in order]
+rt2=[float(retro_csv.loc[m,"R2"])       for m in order]; pp2=[float(resi.loc[m,"R2"])  for m in order]
+sen_mae=float(resi.loc["Oberarzt","MAE"]); sen_r2=float(resi.loc["Oberarzt","R2"])
 n_retro=int(retro_csv["n"].iloc[0]); n_pros=int(resi.loc["Oberarzt","n"])
-fig,ax=plt.subplots(figsize=(8,4.6)); xr=np.arange(len(order)); w=0.38
-ax.bar(xr-w/2,rt,w,label=f"retrospective hold-out (n={n_retro:,})",color="#b5d4f4")
-ax.bar(xr+w/2,pp,w,label=f"prospective (n={n_pros}, completed stays)",color="#185fa5")
-ax.axhline(sen_mae,color="#d6604d",ls="--",lw=1.5)
-ax.text(len(order)-1,sen_mae+0.05,f"Senior physician (prospective, MAE {sen_mae:.2f} d)",color="#d6604d",ha="right",fontsize=9)
-ax.set_xticks(xr); ax.set_xticklabels(["Ridge","Random forest","Extra Trees","XGBoost"]); ax.set_ylabel("MAE (days)")
-ax.set_title("Model comparison — MAE (retrospective vs prospective)",weight="bold"); ax.legend(fontsize=9)
+xr=np.arange(len(order)); w=0.38
+fig,(axA,axB)=plt.subplots(1,2,figsize=(13,4.8))
+# Panel A: MAE (mit Wertelabels)
+ba1=axA.bar(xr-w/2,rt,w,label=f"retrospective hold-out (n={n_retro:,})",color="#b5d4f4")
+ba2=axA.bar(xr+w/2,pp,w,label=f"prospective (n={n_pros})",color="#185fa5")
+axA.bar_label(ba1,fmt="%.2f",fontsize=7.2,padding=2,color="#555")
+axA.bar_label(ba2,fmt="%.2f",fontsize=7.2,padding=2,color="#1f5f9e")
+axA.axhline(sen_mae,color="#c0392b",ls="--",lw=1.6)
+axA.text(len(order)-1,sen_mae+0.12,f"Senior physician (MAE {sen_mae:.2f} d)",color="#c0392b",ha="right",fontsize=8.5,weight="bold")
+axA.set_xticks(xr); axA.set_xticklabels(labels,fontsize=9.5); axA.set_ylabel("MAE (days) — lower is better")
+axA.set_ylim(0,max(max(rt),max(pp))+1.0); axA.set_title("(A) MAE — lower is better",weight="bold",fontsize=11); axA.legend(fontsize=8.5)
+# Panel B: R^2 (Ridge prospektiv ~ -22 -> abgeschnitten und annotiert) mit Wertelabels
+R2FLOOR=-0.35; pp2c=[max(v,R2FLOOR) for v in pp2]
+bb1=axB.bar(xr-w/2,rt2,w,label="retrospective hold-out",color="#b5d4f4")
+axB.bar(xr+w/2,pp2c,w,label="prospective",color="#185fa5")
+axB.bar_label(bb1,fmt="%.2f",fontsize=7.2,padding=2,color="#555")
+axB.axhline(0,color="#888",lw=0.8)
+axB.axhline(sen_r2,color="#c0392b",ls="--",lw=1.6)
+axB.text(0,sen_r2+0.03,f"Senior physician (R² {sen_r2:.2f})",color="#c0392b",ha="left",fontsize=8.5,weight="bold")
+for i,v in enumerate(pp2):
+    if v<R2FLOOR: axB.text(xr[i]+w/2,R2FLOOR+0.02,f"{v:.0f}↓",color="white",ha="center",va="bottom",fontsize=8,weight="bold")
+    else: axB.text(xr[i]+w/2,pp2c[i]+0.01,f"{v:.2f}",color="#1f5f9e",ha="center",va="bottom",fontsize=7.2)
+axB.set_ylim(R2FLOOR,0.62); axB.set_xticks(xr); axB.set_xticklabels(labels,fontsize=9.5); axB.set_ylabel("R² — higher is better")
+axB.set_title("(B) R² — higher is better",weight="bold",fontsize=11); axB.legend(fontsize=8.5,loc="upper right")
+fig.suptitle(f"Model performance: retrospective hold-out (n={n_retro:,}) vs prospective (n={n_pros} completed stays)",weight="bold",fontsize=12.5)
 fig.tight_layout(); fig.savefig(str(AN/"canonical"/"fig_model_comparison.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
-print("Figur aktualisiert: canonical/fig_model_comparison.png (faire prospektive n=193)")
+print("Figur aktualisiert: canonical/fig_model_comparison.png (MAE + R^2 Panels, faire prospektive n=193)")
 
 # ---- Permutation-Importance-Figur mit englischen Labels (aus feature_importance.csv) ----
 LABELS={
