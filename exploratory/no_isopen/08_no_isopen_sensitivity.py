@@ -153,6 +153,20 @@ def Xframe_pros(frame):
     return X[present]
 Xp=Xframe_pros(mg2)
 
+# ---- Matrix der 286 rekonstruierten Stays fuer die Alt-Objektiv-Auswertung speichern ----
+# (analog alt_matrices/, aber OHNE is_open-Filter -> n=286; retro_train + feature_lists werden
+#  von prospective_24h_rebuild.py erzeugt und hier wiederverwendet)
+ALT286=AN/"canonical"/"alt_matrices_no_isopen"; ALT286.mkdir(parents=True,exist_ok=True)
+_xp=Xp.copy().reset_index(drop=True)
+_xp["__los__"]=mg2["los_days"].values
+_xp["__arzt__"]=mg2["arzt"].values
+_xp["__stay_id__"]=mg2["stay_id"].astype(str).values
+_xp["__is_open__"]=pd.to_numeric(mg2["is_open"],errors="coerce").fillna(0).astype(int).values
+# kanonisches ExtraTrees (finales Manuskript-Modell) auf allen 286 vorhersagen -> in Alt-Auswertung nutzbar
+_xp["__pred_ExtraTrees__"]=np.clip(models["ExtraTrees"].predict(Xp),0,None)
+_xp.to_parquet(ALT286/"prospective_rebuilt_286.parquet")
+print(f"Alt-Matrix (no_isopen) gespeichert: {_xp.shape} -> {ALT286}")
+
 # ---------------- Abdeckung messen ----------------
 def coverage(frame):
     real=[c for c in present if c!="oebenekurz" and pd.to_numeric(frame.get(c),errors="coerce").notna().sum()>0]
