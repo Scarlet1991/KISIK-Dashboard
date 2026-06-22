@@ -196,6 +196,7 @@ manuscript (`reporting/KISIK_Frontiers_Manuskript_v2.docx`); the folders `modeli
 - `exploratory/mimic_external/` — external validation of the methodology on **MIMIC-IV 3.1**.
 - `exploratory/kisik_alternatives/` — **Tweedie / Gamma / hazard / quantile-P80** objectives on the AIN cohort.
 - `exploratory/routing/` — gated-ensemble **model routing** experiment and the **physician-as-regime-detector** analysis.
+- `exploratory/no_isopen/` — sensitivity **without the `is_open` correction** (open/censored stays included; with Tweedie).
 
 See [`exploratory/README.md`](exploratory/README.md) for findings and reproducibility. Only
 aggregate outputs are included there (no patient-level data).

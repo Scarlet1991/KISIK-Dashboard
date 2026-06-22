@@ -1,0 +1,6 @@
+Modell;MAE_isopen0_Manuskript;R2_isopen0;MAE_ohne_Filter_alt;R2_ohne_Filter;dMAE
+Oberarzt;2.011;0.219;2.94;0.276;0.929
+Ridge;7.403;-22.051;8.064;-12.664;0.661
+RandomForest;2.82;0.005;3.916;-0.002;1.096
+ExtraTrees;2.637;0.07;3.691;0.017;1.054
+XGBoost;3.004;-0.037;3.98;0.022;0.976

@@ -1,0 +1,11 @@
+Gruppe;Modell;n;MAE;MedianAE;RMSE;R2;Bias
+is_open=0 abgeschlossen;Oberarzt;193;2.011;0.893;3.796;0.219;-0.136
+is_open=0 abgeschlossen;Ridge;193;7.403;4.238;20.617;-22.051;5.811
+is_open=0 abgeschlossen;RandomForest;193;2.82;2.011;4.284;0.005;0.256
+is_open=0 abgeschlossen;ExtraTrees;193;2.637;1.661;4.14;0.07;-0.114
+is_open=0 abgeschlossen;XGBoost;193;3.004;2.106;4.372;-0.037;0.635
+is_open=1 offen/zensiert;Oberarzt;93;4.868;2.185;7.807;0.147;-3.101
+is_open=1 offen/zensiert;Ridge;93;9.436;3.603;28.873;-10.664;2.34
+is_open=1 offen/zensiert;RandomForest;93;6.19;3.224;9.364;-0.227;-3.815
+is_open=1 offen/zensiert;ExtraTrees;93;5.879;2.959;9.374;-0.23;-4.436
+is_open=1 offen/zensiert;XGBoost;93;6.007;3.059;9.116;-0.163;-3.215

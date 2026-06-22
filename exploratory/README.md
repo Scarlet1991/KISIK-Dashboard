@@ -49,6 +49,23 @@ AIN cohort (n = 12,884) as the manuscript — for an apples-to-apples comparison
   (ROC-AUC 0.93 for > 7 d and > 14 d, vs 0.71/0.79 for the model): it carries exactly the regime
   signal the compressed model lacks. See `los_routing_experiment.csv`, `los_physician_detector.csv`.
 
+## 4 · `no_isopen/` — sensitivity *without* the `is_open` correction
+The manuscript evaluates the prospective cohort on **completed stays only** (`is_open = 0`, n = 193),
+because a valid error can only be computed against a *final* LoS. This sensitivity analysis drops
+that filter (n = 286, incl. 93 open/censored stays) using the **same reconstructed 24-h features**,
+and adds **Tweedie**.
+
+- `08_no_isopen_sensitivity.py` — overall + `is_open`-stratified evaluation, `is_open=0`-vs-no-filter
+  comparison, and a manuscript-style retro-vs-prospective figure with Tweedie.
+- **Headline:** without the filter the ML models degrade as expected (Extra Trees prospective MAE
+  2.64 → 3.69; Tweedie 2.78 → 3.74), driven by the open **long-stayers** (ML MAE ≈ 5.9–6.2 there).
+  So the `is_open = 0` prospective MAE is **length-biased optimistic**. Two caveats: (i) open stays
+  are **right-censored** (recorded LoS is a lower bound), so the model under-predicts them and the
+  no-filter MAE *understates* the true error; (ii) the physician advantage **grows** when long-stayers
+  are included (gap 0.63 → 0.75 d; physician still best on the open stays, 4.87 vs ≥ 5.9). The
+  manuscript's conclusions are therefore **conservative** under `is_open = 0`. Figures:
+  `fig_old_approach_retro_vs_pros.png`, `fig_mae_by_isopen.png`, `fig_vergleich_no_isopen_mit_tweedie.png`.
+
 ---
 
 ## Reproducibility
