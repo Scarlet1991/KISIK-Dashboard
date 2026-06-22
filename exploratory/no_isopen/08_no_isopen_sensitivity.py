@@ -61,6 +61,7 @@ def pre(scale=False):
     ns=[("imp",SimpleImputer(strategy="median"))]+([("sc",StandardScaler())] if scale else [])
     return ColumnTransformer([("num",Pipeline(ns),numc),("cat",Pipeline([("imp",SimpleImputer(strategy="most_frequent")),("ohe",OneHotEncoder(handle_unknown="ignore"))]),cat)])
 def ttr(reg,scale=False): return TransformedTargetRegressor(Pipeline([("pre",pre(scale)),("mdl",reg)]),func=np.log1p,inverse_func=np.expm1)
+def plain(reg): return Pipeline([("pre",pre(False)),("mdl",reg)])  # Tweedie: eigener Loss/Link, kein log1p
 # beste Hyperparameter aus der kanonischen Analyse (summary.json) laden -> konsistent zum finalen Modell
 import json
 bp=json.loads((AN/"canonical"/"summary.json").read_text(encoding="utf-8"))["best_params"]
@@ -70,6 +71,8 @@ models={
  "ExtraTrees":ttr(ExtraTreesRegressor(**bp["ExtraTrees"],random_state=RS,n_jobs=1)),
  "XGBoost":ttr(XGBRegressor(**bp["XGBoost"],random_state=RS,n_jobs=1,tree_method="hist")),
 }
+if "Tweedie" in bp:
+    models["Tweedie"]=plain(XGBRegressor(objective="reg:tweedie",**bp["Tweedie"],random_state=RS,n_jobs=1,tree_method="hist"))
 print(f"Training (beste Hyperparameter aus summary.json) ... ExtraTrees={bp['ExtraTrees']}"); [m.fit(X.iloc[tr],y[tr]) for m in models.values()]
 
 # ---------------- prospektive Kohorte + Senior-Match ----------------
@@ -172,10 +175,9 @@ print(f"weiterhin per Median ersetzt: {len(miss)} ->", dict(collections.Counter(
 fillrate=pd.to_numeric(Xp[[c for c in present if c!='oebenekurz']].apply(lambda s:pd.to_numeric(s,errors='coerce')).notna().sum(axis=1))/ (len(present)-1)
 print(f"Median-Befuellungsgrad pro Stay: {fillrate.median()*100:.0f}% (min {fillrate.min()*100:.0f}%, max {fillrate.max()*100:.0f}%)")
 
-# ============ ZUSATZAUSWERTUNG: ALTER ANSATZ (ohne is_open-Korrektur) ============
-# Offene (is_open=1) Stays werden EINBEZOGEN und gegen ihre ERFASSTE LoS bewertet.
-# ACHTUNG: bei is_open=1 ist los_days ZENSIERT (Untergrenze) -> Fehler sind Artefakte
-#          des Vergleichs gegen unvollstaendige Outcomes. Nur als Sensitivitaet/Kontrast.
+# ============ AUSWERTUNG OHNE is_open-Filter (5 Modelle + Tweedie) ============
+# ACHTUNG: bei is_open=1 ist los_days ZENSIERT (bisher vergangene Zeit, nicht endgueltige LoS)
+# -> Fehler bei is_open=1-Stays sind durch zensierte Zielwerte verzerrt. Nur als Sensitivitaet.
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 plt.rcParams.update({"font.family":"DejaVu Sans","axes.spines.top":False,"axes.spines.right":False})
 OUTX=AN/"exploratory_no_isopen"; OUTX.mkdir(parents=True,exist_ok=True)
@@ -183,90 +185,129 @@ OUTX=AN/"exploratory_no_isopen"; OUTX.mkdir(parents=True,exist_ok=True)
 yt=mg2["los_days"].to_numpy(float)
 isopen=pd.to_numeric(mg2["is_open"],errors="coerce").fillna(0).astype(int).to_numpy()
 arzt=mg2["arzt"].to_numpy(float)
+
 def met(y,p,label,sub=None):
     if sub is not None: y,p=y[sub],p[sub]
     p=np.clip(np.asarray(p,float),0,None); ae=np.abs(y-p)
     return {"Modell":label,"n":int(len(y)),"MAE":round(float(ae.mean()),3),"MedianAE":round(float(np.median(ae)),3),
             "RMSE":round(float(np.sqrt(mean_squared_error(y,p))),3),"R2":round(float(r2_score(y,p)),3),"Bias":round(float((p-y).mean()),3)}
+
 preds={"Oberarzt":arzt}
 for nm,m in models.items(): preds[nm]=np.clip(m.predict(Xp),0,None)
-order=["Oberarzt","Ridge","RandomForest","ExtraTrees","XGBoost"]; ml=["Ridge","RandomForest","ExtraTrees","XGBoost"]
-print(f"\nKohorte OHNE is_open-Filter: n={len(yt)} (abgeschlossen {int((isopen==0).sum())}, offen/zensiert {int((isopen==1).sum())})")
+ml_order=[m for m in ["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"] if m in models]
+order=["Oberarzt"]+ml_order
+n0=int((isopen==0).sum()); n1=int((isopen==1).sum())
+print(f"\nKohorte OHNE is_open-Filter: n={len(yt)} (abgeschlossen {n0}, offen/zensiert {n1})")
 
-allres=pd.DataFrame([met(yt,preds[o],o) for o in order]); allres.to_csv(OUTX/"prospektiv_no_isopen_overall.csv",sep=";",index=False)
+# ---- Gesamt-Metriken ----
+allres=pd.DataFrame([met(yt,preds[o],o) for o in order])
+allres.to_csv(OUTX/"prospektiv_no_isopen_overall.csv",sep=";",index=False)
 print("\n=== PROSPEKTIV OHNE is_open-Filter (gegen erfasste/zensierte LoS) ==="); print(allres.to_string(index=False))
 A=allres.set_index("Modell")
+
+# ---- Stratifiziert nach is_open ----
 strat=[]
 for st,lab in [(isopen==0,"is_open=0 abgeschlossen"),(isopen==1,"is_open=1 offen/zensiert")]:
     for o in order: strat.append({**met(yt,preds[o],o,st),"Gruppe":lab})
 stratdf=pd.DataFrame(strat)[["Gruppe","Modell","n","MAE","MedianAE","RMSE","R2","Bias"]]
 stratdf.to_csv(OUTX/"prospektiv_no_isopen_by_isopen.csv",sep=";",index=False)
 print("\n=== Stratifiziert nach is_open ==="); print(stratdf.to_string(index=False))
+
+# ---- Vergleich is_open=0 vs ohne Filter ----
 comp=[]
 for o in order:
     c=met(yt,preds[o],o,isopen==0); a=met(yt,preds[o],o)
-    comp.append({"Modell":o,"MAE_isopen0_Manuskript":c["MAE"],"R2_isopen0":c["R2"],
-                 "MAE_ohne_Filter_alt":a["MAE"],"R2_ohne_Filter":a["R2"],"dMAE":round(a["MAE"]-c["MAE"],3)})
+    comp.append({"Modell":o,"MAE_isopen0":c["MAE"],"R2_isopen0":c["R2"],
+                 "MAE_no_filter":a["MAE"],"R2_no_filter":a["R2"],"dMAE":round(a["MAE"]-c["MAE"],3)})
 compdf=pd.DataFrame(comp); compdf.to_csv(OUTX/"prospektiv_vergleich_isopen.csv",sep=";",index=False)
-print("\n=== Vergleich: is_open=0 (Manuskript) vs ohne Filter (alt) ==="); print(compdf.to_string(index=False))
+print("\n=== Vergleich is_open=0 vs ohne Filter ==="); print(compdf.to_string(index=False))
 
-retro=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
-labels=["Ridge","Random forest","Extra Trees","XGBoost"]
-rt=[float(retro.loc[m,"MAE_days"]) for m in ml]; pp=[float(A.loc[m,"MAE"]) for m in ml]
-sen_mae=float(A.loc["Oberarzt","MAE"]); n_pros=len(yt); n_retro=int(retro["n"].iloc[0]); xr=np.arange(4); w=0.38
-fig,ax=plt.subplots(figsize=(9,5))
-b1=ax.bar(xr-w/2,rt,w,label=f"retrospective hold-out (n={n_retro:,})",color="#b5d4f4")
-b2=ax.bar(xr+w/2,pp,w,label=f"prospective, NO is_open filter (n={n_pros})",color="#185fa5")
-ax.bar_label(b1,fmt="%.2f",fontsize=7.5,padding=2); ax.bar_label(b2,fmt="%.2f",fontsize=7.5,padding=2,color="#1f5f9e")
-ax.axhline(sen_mae,color="#c0392b",ls="--",lw=1.6); ax.text(3,sen_mae+0.1,f"Senior physician (MAE {sen_mae:.2f} d)",color="#c0392b",ha="right",fontsize=8.5,weight="bold")
-ax.set_xticks(xr); ax.set_xticklabels(labels); ax.set_ylabel("MAE (days)")
-ax.set_title("OLD approach (no is_open correction): retrospective vs prospective MAE\nopen/censored stays included, scored against recorded LoS (a lower bound)",weight="bold",fontsize=10.5)
-ax.legend(fontsize=8.5); fig.tight_layout(); fig.savefig(str(OUTX/"fig_old_approach_retro_vs_pros.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+# ---- Figur 1: MAE + R² zwei Panels (retro vs prospektiv ohne Filter) ----
+retro_csv=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
+fig_order=[m for m in ["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"] if m in retro_csv.index and m in A.index]
+fig_labels=[{"RandomForest":"Random forest","ExtraTrees":"Extra Trees"}.get(m,m) for m in fig_order]
+rt =[float(retro_csv.loc[m,"MAE_days"]) for m in fig_order]
+pp =[float(A.loc[m,"MAE"]) for m in fig_order]
+rt2=[float(retro_csv.loc[m,"R2"])       for m in fig_order]
+pp2=[float(A.loc[m,"R2"])               for m in fig_order]
+sen_mae=float(A.loc["Oberarzt","MAE"]); sen_r2=float(A.loc["Oberarzt","R2"])
+n_retro=int(retro_csv["n"].iloc[0]); n_pros=len(yt)
+xi=np.arange(len(fig_order)); w=0.38
+fig,(axA,axB)=plt.subplots(1,2,figsize=(13,4.8))
+ba1=axA.bar(xi-w/2,rt,w,label=f"retrospective hold-out (n={n_retro:,})",color="#b5d4f4")
+ba2=axA.bar(xi+w/2,pp,w,label=f"prospective, no is_open filter (n={n_pros})",color="#185fa5")
+axA.bar_label(ba1,fmt="%.2f",fontsize=7.2,padding=2,color="#555")
+axA.bar_label(ba2,fmt="%.2f",fontsize=7.2,padding=2,color="#1f5f9e")
+axA.axhline(sen_mae,color="#c0392b",ls="--",lw=1.6)
+axA.text(len(fig_order)-1,sen_mae+0.12,f"Senior physician (MAE {sen_mae:.2f} d)",color="#c0392b",ha="right",fontsize=8.5,weight="bold")
+axA.set_xticks(xi); axA.set_xticklabels(fig_labels,fontsize=9.5); axA.set_ylabel("MAE (days) — lower is better")
+axA.set_ylim(0,max(max(rt),max(pp))+1.0); axA.set_title("(A) MAE — lower is better",weight="bold",fontsize=11); axA.legend(fontsize=8.5)
+R2FLOOR=-0.35; pp2c=[max(v,R2FLOOR) for v in pp2]
+bb1=axB.bar(xi-w/2,rt2,w,label="retrospective hold-out",color="#b5d4f4")
+axB.bar(xi+w/2,pp2c,w,label="prospective (no filter)",color="#185fa5")
+axB.bar_label(bb1,fmt="%.2f",fontsize=7.2,padding=2,color="#555")
+axB.axhline(0,color="#888",lw=0.8); axB.axhline(sen_r2,color="#c0392b",ls="--",lw=1.6)
+axB.text(0,sen_r2+0.03,f"Senior physician (R² {sen_r2:.2f})",color="#c0392b",ha="left",fontsize=8.5,weight="bold")
+for i,v in enumerate(pp2):
+    if v<R2FLOOR: axB.text(xi[i]+w/2,R2FLOOR+0.02,f"{v:.1f}↓",color="white",ha="center",va="bottom",fontsize=8,weight="bold")
+    else: axB.text(xi[i]+w/2,pp2c[i]+0.01,f"{v:.2f}",color="#1f5f9e",ha="center",va="bottom",fontsize=7.2)
+axB.set_ylim(R2FLOOR,0.62); axB.set_xticks(xi); axB.set_xticklabels(fig_labels,fontsize=9.5); axB.set_ylabel("R² — higher is better")
+axB.set_title("(B) R² — higher is better",weight="bold",fontsize=11); axB.legend(fontsize=8.5,loc="upper right")
+fig.suptitle(f"Model performance: retrospective hold-out (n={n_retro:,}) vs prospective NO is_open filter (n={n_pros})\n"
+             f"[is_open=1: LoS is censored elapsed time, not final LOS — MAE artificially inflated for open stays]",weight="bold",fontsize=11)
+fig.tight_layout(); fig.savefig(str(OUTX/"fig_model_comparison_no_isopen.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur gespeichert: fig_model_comparison_no_isopen.png")
 
-g0=[met(yt,preds[m],m,isopen==0)["MAE"] for m in ml]; ga=[float(A.loc[m,"MAE"]) for m in ml]; g1=[met(yt,preds[m],m,isopen==1)["MAE"] for m in ml]
-fig,ax=plt.subplots(figsize=(9.5,5)); w=0.27
-c0=ax.bar(xr-w,g0,w,label=f"is_open=0 completed (n={int((isopen==0).sum())})",color="#b5d4f4")
-ca=ax.bar(xr,ga,w,label=f"all / no filter (n={len(yt)})",color="#185fa5")
-c1=ax.bar(xr+w,g1,w,label=f"is_open=1 open/censored (n={int((isopen==1).sum())})",color="#c0392b")
+# ---- Figur 2: MAE nach is_open-Status (3 Balken pro Modell) ----
+g0=[met(yt,preds[m],m,isopen==0)["MAE"] for m in ml_order]
+ga=[float(A.loc[m,"MAE"]) for m in ml_order]
+g1=[met(yt,preds[m],m,isopen==1)["MAE"] for m in ml_order]
+xr4=np.arange(len(ml_order)); w3=0.27
+fig,ax=plt.subplots(figsize=(10,5))
+c0=ax.bar(xr4-w3,g0,w3,label=f"is_open=0 completed (n={n0})",color="#b5d4f4")
+ca=ax.bar(xr4,ga,w3,label=f"all / no filter (n={n_pros})",color="#185fa5")
+c1=ax.bar(xr4+w3,g1,w3,label=f"is_open=1 open/censored (n={n1}) [ZENSIERT]",color="#c0392b")
 for c in (c0,ca,c1): ax.bar_label(c,fmt="%.1f",fontsize=6.8,padding=2)
-ax.set_xticks(xr); ax.set_xticklabels(labels); ax.set_ylabel("MAE (days)")
-ax.set_title("Prospective MAE by is_open status: the open (censored) long-stayers drive the apparent degradation",weight="bold",fontsize=10.5)
+ax.set_xticks(xr4); ax.set_xticklabels([{"RandomForest":"Random Forest","ExtraTrees":"Extra Trees"}.get(m,m) for m in ml_order])
+ax.set_ylabel("MAE (days)"); ax.set_title("Prospective MAE by is_open status — open stays drive apparent degradation",weight="bold",fontsize=10.5)
 ax.legend(fontsize=8.5); fig.tight_layout(); fig.savefig(str(OUTX/"fig_mae_by_isopen.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur gespeichert: fig_mae_by_isopen.png")
 
-# ---- Tweedie ergaenzen + manuskript-stilige Vergleichsgrafik (prospektiv OHNE is_open) ----
-from xgboost import XGBRegressor as _XGB
-def _design(frame):
-    parts=[frame[numc].apply(pd.to_numeric,errors="coerce")]
-    if cat: parts.append(pd.get_dummies(frame[cat].astype(str),prefix=cat).astype(float))
-    Z=pd.concat(parts,axis=1); Z.columns=[str(c) for c in Z.columns]; return Z
-_DC=_design(X.iloc[tr]).columns.tolist()
-def _dz(frame):
-    Z=_design(frame)
-    for c in _DC:
-        if c not in Z.columns: Z[c]=0.0
-    return Z[_DC].to_numpy(dtype=np.float64,na_value=np.nan)
-tw=_XGB(objective="reg:tweedie",tweedie_variance_power=1.5,n_estimators=600,max_depth=6,learning_rate=0.05,
-        subsample=0.8,colsample_bytree=0.8,min_child_weight=3,random_state=RS,n_jobs=-1)
-tw.fit(_dz(X.iloc[tr]), y[tr])
-tw_retro=float(np.mean(np.abs(np.clip(tw.predict(_dz(X.iloc[te])),0,None)-y[te])))
-tw_pros =float(np.mean(np.abs(np.clip(tw.predict(_dz(Xp)),0,None)-yt)))
-print(f"Tweedie: retro-Holdout MAE {tw_retro:.3f} | prospektiv ohne Filter MAE {tw_pros:.3f}")
+# ---- Figur 3: Subgruppen-MAE nach LoS-Kategorie (4 Bins) ----
+null_pred_val=float(y[tr].mean())
+sg_bins=[("1–2 d",(yt>=1)&(yt<=2)),("2–4 d",(yt>2)&(yt<=4)),("4–7 d",(yt>4)&(yt<=7)),(">7 d",yt>7)]
+all_sg_preds={"Oberarzt":arzt,**{n:np.clip(m.predict(Xp),0,None) for n,m in models.items()},"Null":np.full(len(yt),null_pred_val)}
+sg_rows=[]
+for sg_label,mask in sg_bins:
+    if mask.sum()<5: continue
+    for mod_name,pred in all_sg_preds.items():
+        ae=np.abs(yt[mask]-np.asarray(pred,float)[mask])
+        sg_rows.append({"Subgroup":sg_label,"n":int(mask.sum()),"Modell":mod_name,
+                        "MAE":round(float(ae.mean()),3),"MedianAE":round(float(np.median(ae)),3)})
+sg_df=pd.DataFrame(sg_rows); sg_df.to_csv(OUTX/"metrics_subgroups_no_isopen.csv",sep=";",index=False)
+print("\n=== MAE NACH LoS-SUBGRUPPE (ohne is_open-Filter, n=%d) ===" % len(yt))
+print(sg_df.pivot_table(index="Modell",columns="Subgroup",values="MAE").to_string())
 
-retroM=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
-g4=["Ridge","RandomForest","ExtraTrees","XGBoost"]; glab=["Ridge","Random Forest","Extra Trees","XGBoost","Tweedie"]
-retro_mae=[float(retroM.loc[m,"MAE_days"]) for m in g4]+[tw_retro]
-pros_mae =[float(A.loc[m,"MAE"]) for m in g4]+[tw_pros]
-sen=float(A.loc["Oberarzt","MAE"]); xr5=np.arange(5); w=0.38; CAP=4.6
-fig,ax=plt.subplots(figsize=(10,5.4))
-bR=ax.bar(xr5-w/2,np.minimum(retro_mae,CAP),w,label="retrospektiv (hold-out)",color="#b8cce4")
-bP=ax.bar(xr5+w/2,np.minimum(pros_mae,CAP),w,label=f"prospektiv ohne is_open-Filter (n={len(yt)})",color="#1f5f9e")
-for x,v in zip(xr5-w/2,retro_mae): ax.annotate((f"{v:.1f}↑" if v>CAP else f"{v:.2f}"),(x,min(v,CAP)),xytext=(0,2),textcoords="offset points",ha="center",fontsize=7,color="#444")
-for x,v in zip(xr5+w/2,pros_mae): ax.annotate((f"{v:.1f}↑" if v>CAP else f"{v:.2f}"),(x,min(v,CAP)),xytext=(0,2),textcoords="offset points",ha="center",fontsize=7,color="#1f5f9e")
-ax.axhline(sen,color="#c0392b",ls="--",lw=1.6); ax.text(4.45,sen+0.06,f"Oberarzt: MAE {sen:.2f} d",color="#c0392b",ha="right",fontsize=9,weight="bold")
-ax.set_xticks(xr5); ax.set_xticklabels(glab); ax.set_ylabel("MAE (days)"); ax.set_ylim(0,CAP+0.3)
-ax.set_title("MAE — prospektiv (ohne is_open-Filter) vs. retrospektiv (Tage)\nmit Tweedie; Bias-Hinweis: bei is_open=1 ist die LoS zensiert (Werte > 4.6 abgeschnitten ↑)",weight="bold",fontsize=11)
-ax.legend(fontsize=9,loc="upper center",ncol=2)
-fig.tight_layout(); fig.savefig(str(OUTX/"fig_vergleich_no_isopen_mit_tweedie.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+sg_order=["Oberarzt"]+[m for m in ["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"] if m in models]+["Null"]
+sg_label_map={"Oberarzt":"Oberarzt","RandomForest":"Random Forest","ExtraTrees":"Extra Trees","Null":"Null (mean)"}
+sg_colors={"Oberarzt":"#c0392b","Ridge":"#7f8c8d","RandomForest":"#3498db","ExtraTrees":"#1a6ea3",
+           "XGBoost":"#27ae60","Tweedie":"#8e44ad","Null":"#bdc3c7"}
+bins_order=[r[0] for r in sg_bins if r[1].sum()>=5]
+ns_sg={r[0]:int(r[1].sum()) for r in sg_bins}
+xi2=np.arange(len(bins_order)); n_mods=len(sg_order); total_w=0.82; bw=total_w/n_mods
+offsets=np.linspace(-(total_w-bw)/2,(total_w-bw)/2,n_mods)
+fig,ax=plt.subplots(figsize=(13,5.2))
+for i,mod_name in enumerate(sg_order):
+    mae_vals=[float(sg_df[(sg_df["Modell"]==mod_name)&(sg_df["Subgroup"]==b)]["MAE"].iloc[0]) if len(sg_df[(sg_df["Modell"]==mod_name)&(sg_df["Subgroup"]==b)])>0 else 0 for b in bins_order]
+    bars=ax.bar(xi2+offsets[i],mae_vals,bw,label=sg_label_map.get(mod_name,mod_name),color=sg_colors.get(mod_name,"#888"))
+    ax.bar_label(bars,fmt="%.1f",fontsize=6.8,padding=2)
+ax.set_xticks(xi2); ax.set_xticklabels([f"{b}\n(n={ns_sg[b]})" for b in bins_order],fontsize=10)
+ax.set_ylabel("MAE (days) — lower is better"); ax.set_ylim(0,max(sg_df["MAE"])*1.22)
+ax.legend(fontsize=8.5,ncol=4,loc="upper left"); ax.spines[["top","right"]].set_visible(False)
+ax.set_title(f"MAE by LoS subgroup — prospective cohort WITHOUT is_open filter (n={len(yt)}, incl. {n1} censored)\n"
+             "[is_open=1 LoS = elapsed time only — MAE for open stays scored against lower bound]",weight="bold",fontsize=11)
+fig.tight_layout(); fig.savefig(str(OUTX/"fig_subgroup_mae_no_isopen.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur gespeichert: fig_subgroup_mae_no_isopen.png")
 
-print(f"\nGespeichert in {OUTX}: 3 CSVs + 3 Figuren (inkl. fig_vergleich_no_isopen_mit_tweedie.png)")
+print(f"\nAlle Ausgaben in {OUTX}: 3 CSVs + 3 Figuren")
 con.close()

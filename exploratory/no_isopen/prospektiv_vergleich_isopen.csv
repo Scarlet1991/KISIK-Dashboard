@@ -1,6 +1,7 @@
-Modell;MAE_isopen0_Manuskript;R2_isopen0;MAE_ohne_Filter_alt;R2_ohne_Filter;dMAE
+Modell;MAE_isopen0;R2_isopen0;MAE_no_filter;R2_no_filter;dMAE
 Oberarzt;2.011;0.219;2.94;0.276;0.929
-Ridge;7.403;-22.051;8.064;-12.664;0.661
-RandomForest;2.82;0.005;3.916;-0.002;1.096
-ExtraTrees;2.637;0.07;3.691;0.017;1.054
-XGBoost;3.004;-0.037;3.98;0.022;0.976
+Ridge;7.39;-22.048;8.042;-12.661;0.652
+RandomForest;2.824;0.004;3.929;-0.004;1.105
+ExtraTrees;2.641;0.07;3.698;0.016;1.057
+XGBoost;3.019;-0.042;3.982;0.021;0.963
+Tweedie;3.324;-0.133;4.41;-0.051;1.086
