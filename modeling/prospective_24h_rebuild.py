@@ -45,7 +45,7 @@ def sanitize(v):
 # ---------------- Training (kanonisch, beste Hyperparameter) ----------------
 allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
 df["los_days"]=df["icu_duration_h"]/24.0
 feat=pd.read_csv(FEAT,sep=";")["Feature"].tolist()
 present=[f for f in feat if f in df.columns and not f.startswith(("lab_","vital_","proc_","zugang_"))]
@@ -61,6 +61,7 @@ def pre(scale=False):
     ns=[("imp",SimpleImputer(strategy="median"))]+([("sc",StandardScaler())] if scale else [])
     return ColumnTransformer([("num",Pipeline(ns),numc),("cat",Pipeline([("imp",SimpleImputer(strategy="most_frequent")),("ohe",OneHotEncoder(handle_unknown="ignore"))]),cat)])
 def ttr(reg,scale=False): return TransformedTargetRegressor(Pipeline([("pre",pre(scale)),("mdl",reg)]),func=np.log1p,inverse_func=np.expm1)
+def plain(reg): return Pipeline([("pre",pre(False)),("mdl",reg)])  # Tweedie: eigener Loss/Link, kein log1p
 # beste Hyperparameter aus der kanonischen Analyse (summary.json) laden -> konsistent zum finalen Modell
 import json
 bp=json.loads((AN/"canonical"/"summary.json").read_text(encoding="utf-8"))["best_params"]
@@ -70,12 +71,14 @@ models={
  "ExtraTrees":ttr(ExtraTreesRegressor(**bp["ExtraTrees"],random_state=RS,n_jobs=1)),
  "XGBoost":ttr(XGBRegressor(**bp["XGBoost"],random_state=RS,n_jobs=1,tree_method="hist")),
 }
+if "Tweedie" in bp:
+    models["Tweedie"]=plain(XGBRegressor(objective="reg:tweedie",**bp["Tweedie"],random_state=RS,n_jobs=1,tree_method="hist"))
 print(f"Training (beste Hyperparameter aus summary.json) ... ExtraTrees={bp['ExtraTrees']}"); [m.fit(X.iloc[tr],y[tr]) for m in models.values()]
 
 # ---------------- prospektive Kohorte + Senior-Match ----------------
 # gleiche Stations-/Einheiten-Filter wie retrospektiv (AIN IZ32/21/31), nur abgeschlossene
 # Aufenthalte (is_open=0) mit tatsaechlicher LoS > 1 Tag
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND is_open=0 AND icu_duration_h/24.0>1").df()
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND is_open=0 AND icu_duration_h/24.0>2").df()
 dp["los_days"]=dp["icu_duration_h"]/24.0
 sen=pd.read_csv(SENIOR,sep=";"); dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)
 mg=dp.merge(sen,left_on="stay_id",right_on="tages_stay_id",how="inner")
@@ -150,6 +153,16 @@ def Xframe_pros(frame):
     return X[present]
 Xp=Xframe_pros(mg2)
 
+# ---- Matrizen fuer alternative Modelle (Tweedie/Hazard/Quantile) auf rekonstruierten Features speichern ----
+import json as _json
+ALT=AN/"canonical"/"alt_matrices"; ALT.mkdir(parents=True,exist_ok=True)
+_xtr=X.iloc[tr].copy(); _xtr["__y__"]=y[tr]; _xtr.to_parquet(ALT/"retro_train.parquet")
+_xp=Xp.copy().reset_index(drop=True)
+_xp["__los__"]=mg2["los_days"].values; _xp["__arzt__"]=mg2["arzt"].values; _xp["__stay_id__"]=mg2["stay_id"].astype(str).values
+_xp.to_parquet(ALT/"prospective_rebuilt_193.parquet")
+_json.dump({"present":present,"numc":numc,"cat":cat}, open(ALT/"feature_lists.json","w"))
+print(f"Alt-Matrizen gespeichert: retro_train {_xtr.shape} | prospective_rebuilt {_xp.shape} -> {ALT}")
+
 # ---------------- Abdeckung messen ----------------
 def coverage(frame):
     real=[c for c in present if c!="oebenekurz" and pd.to_numeric(frame.get(c),errors="coerce").notna().sum()>0]
@@ -185,13 +198,59 @@ res=pd.DataFrame(rows)
 print("\n=== PROSPEKTIV (faire 24h-Features) — Tage ===")
 print(res.to_string(index=False))
 res.to_csv(AN/"canonical"/"metrics_prospective_fair24h.csv",sep=";",index=False)
-# Subgruppen
+# Subgruppen (print)
 print("\nnach LoS-Subgruppe (MAE):")
-for sg,mask in [("1-7d",(yt>1)&(yt<=7)),(">7d",yt>7)]:
+for sg,mask in [("2-7d",(yt>2)&(yt<=7)),(">7d",yt>7)]:
     if mask.sum()<5: continue
     r=[f"Oberarzt {metrics(yt,mg2['arzt'].values,'',mask)['MAE']}"]+[f"{n} {metrics(yt,m.predict(Xp),'',mask)['MAE']}" for n,m in models.items()]
     print(f"  {sg} (n={int(mask.sum())}): "+" | ".join(r))
 print("\nGespeichert: canonical/metrics_prospective_fair24h.csv")
+
+# ---- Null-Modell (Trainings-Mittelwert) ----
+import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+null_pred_val = float(y[tr].mean())
+print(f"\nNull-Modell: Trainings-Mittelwert = {null_pred_val:.2f} d")
+
+# ---- Subgruppen-Analyse: MAE nach LoS-Kategorie (LoS>2 -> 3 Bins) + Null ----
+sg_bins=[("2–4 d",(yt>2)&(yt<=4)),
+         ("4–7 d",(yt>4)&(yt<=7)),(">7 d",yt>7)]
+all_preds={"Oberarzt":mg2["arzt"].values}
+for n,m in models.items(): all_preds[n]=np.clip(m.predict(Xp),0,None)
+all_preds["Null"]=np.full(len(yt),null_pred_val)
+
+sg_rows=[]
+for sg_label,mask in sg_bins:
+    if mask.sum()<5: continue
+    for mod_name,pred in all_preds.items():
+        ae=np.abs(yt[mask]-np.asarray(pred,float)[mask])
+        sg_rows.append({"Subgroup":sg_label,"n":int(mask.sum()),"Modell":mod_name,
+                        "MAE":round(float(ae.mean()),3),"MedianAE":round(float(np.median(ae)),3)})
+sg_df=pd.DataFrame(sg_rows)
+sg_df.to_csv(AN/"canonical"/"metrics_subgroups.csv",sep=";",index=False)
+print("\n=== MAE NACH LoS-SUBGRUPPE (is_open=0, n=193) ===")
+pivot=sg_df.pivot_table(index="Modell",columns="Subgroup",values="MAE")
+print(pivot.to_string())
+
+# ---- Subgruppen-Figur ----
+sg_order=["Oberarzt"]+[m for m in ["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"] if m in models]+["Null"]
+sg_label_map={"Oberarzt":"Oberarzt","RandomForest":"Random Forest","ExtraTrees":"Extra Trees","Null":"Null (mean)"}
+sg_colors={"Oberarzt":"#c0392b","Ridge":"#7f8c8d","RandomForest":"#3498db","ExtraTrees":"#1a6ea3",
+           "XGBoost":"#27ae60","Tweedie":"#8e44ad","Null":"#bdc3c7"}
+bins_order=[r[0] for r in sg_bins if r[1].sum()>=5]
+ns_sg={r[0]:int(r[1].sum()) for r in sg_bins}
+xi=np.arange(len(bins_order)); n_mods=len(sg_order); total_w=0.82; bw=total_w/n_mods
+offsets=np.linspace(-(total_w-bw)/2,(total_w-bw)/2,n_mods)
+fig,ax=plt.subplots(figsize=(13,5.2))
+for i,mod_name in enumerate(sg_order):
+    mae_vals=[float(sg_df[(sg_df["Modell"]==mod_name)&(sg_df["Subgroup"]==b)]["MAE"].iloc[0]) if len(sg_df[(sg_df["Modell"]==mod_name)&(sg_df["Subgroup"]==b)])>0 else 0 for b in bins_order]
+    bars=ax.bar(xi+offsets[i],mae_vals,bw,label=sg_label_map.get(mod_name,mod_name),color=sg_colors.get(mod_name,"#888"))
+    ax.bar_label(bars,fmt="%.1f",fontsize=6.8,padding=2)
+ax.set_xticks(xi); ax.set_xticklabels([f"{b}\n(n={ns_sg[b]})" for b in bins_order],fontsize=10)
+ax.set_ylabel("MAE (days) — lower is better"); ax.set_ylim(0,max(sg_df["MAE"])*1.22)
+ax.legend(fontsize=8.5,ncol=4,loc="upper left"); ax.spines[["top","right"]].set_visible(False)
+ax.set_title("MAE by LoS subgroup — prospective cohort (is_open=0, n=193, completed stays)",weight="bold",fontsize=12)
+fig.tight_layout(); fig.savefig(str(AN/"canonical"/"fig_subgroup_mae.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
+print("Figur gespeichert: canonical/fig_subgroup_mae.png")
 
 # ---- faire prospektive Hexbin-Figur (finales Modell ExtraTrees, bis 20 Tage) + Vorhersagen ----
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
@@ -221,7 +280,8 @@ print("Figuren aktualisiert: canonical/fig_hexbin_pros_ExtraTrees.png, fig_hexbi
 # Zwei Panels, weil der MAE allein irrefuehrt: ExtraTrees prospektiv ~ retrospektiv, aber R^2 kollabiert.
 retro_csv=pd.read_csv(AN/"canonical"/"metrics_retrospective.csv",sep=";").set_index("Modell")
 resi=res.set_index("Modell")
-order=["Ridge","RandomForest","ExtraTrees","XGBoost"]; labels=["Ridge","Random forest","Extra Trees","XGBoost"]
+order=[m for m in ["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"] if m in retro_csv.index and m in resi.index]
+labels=[{"RandomForest":"Random forest","ExtraTrees":"Extra Trees"}.get(m,m) for m in order]
 rt =[float(retro_csv.loc[m,"MAE_days"]) for m in order]; pp =[float(resi.loc[m,"MAE"]) for m in order]
 rt2=[float(retro_csv.loc[m,"R2"])       for m in order]; pp2=[float(resi.loc[m,"R2"])  for m in order]
 sen_mae=float(resi.loc["Oberarzt","MAE"]); sen_r2=float(resi.loc["Oberarzt","R2"])

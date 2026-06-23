@@ -92,7 +92,7 @@ def met(yt,yp,label,sub=None):
             "RMSE":round(float(np.sqrt(mean_squared_error(yt,yp))),3),"R2":round(float(r2_score(yt,yp)),3),"Bias":round(float((yp-yt).mean()),3)}
 order=["Oberarzt","ExtraTrees","log1p_Mean","Tweedie_1.3","Tweedie_1.5","Tweedie_1.7","Gamma","Hazard_E","Hazard_Median","Quantile_P50","Quantile_P80","Null"]
 order=[o for o in order if o in preds and np.isfinite(preds[o]).all()]
-subs={"1-2 d":(los>1)&(los<=2),"2-4 d":(los>2)&(los<=4),"4-7 d":(los>4)&(los<=7),">7 d":los>7}
+subs={"2-4 d":(los>2)&(los<=4),"4-7 d":(los>4)&(los<=7),">7 d":los>7}
 rows=[]
 for sg,mask in subs.items():
     for o in order: rows.append({**met(los,preds[o],o,mask),"Subgroup":sg})
@@ -125,7 +125,7 @@ print("\n=== Wilcoxon (|Fehler| ML vs Oberarzt, overall) ==="); print(pd.DataFra
 # Figur: MAE nach Subgruppe (Oberarzt / ExtraTrees / Tweedie_1.5 / Hazard_E / Quantile_P80 / Null)
 plt.rcParams.update({"font.family":"DejaVu Sans","axes.spines.top":False,"axes.spines.right":False})
 sel=[o for o in ["Oberarzt","ExtraTrees","Tweedie_1.5","Hazard_E","Quantile_P80","Null"] if o in order]
-sgs=["1-2 d","2-4 d","4-7 d",">7 d"]; w=0.145; xb=np.arange(len(sgs))
+sgs=["2-4 d","4-7 d",">7 d"]; w=0.145; xb=np.arange(len(sgs))
 pal={"Oberarzt":"#c0392b","ExtraTrees":"#1f5f9e","Tweedie_1.5":"#5b9bd5","Hazard_E":"#1a9850","Quantile_P80":"#762a83","Null":"#c7ccd1"}
 fig,ax=plt.subplots(figsize=(12,5.6))
 for i,o in enumerate(sel):

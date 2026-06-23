@@ -1,0 +1,22 @@
+Subgroup;n;Modell;MAE
+2–4 d;84;Oberarzt;1.496
+2–4 d;84;Ridge;2.582
+2–4 d;84;RandomForest;2.394
+2–4 d;84;ExtraTrees;2.267
+2–4 d;84;XGBoost;2.361
+2–4 d;84;Tweedie;2.469
+2–4 d;84;Null;1.948
+4–7 d;46;Oberarzt;1.954
+4–7 d;46;Ridge;1.539
+4–7 d;46;RandomForest;0.985
+4–7 d;46;ExtraTrees;1.022
+4–7 d;46;XGBoost;1.453
+4–7 d;46;Tweedie;1.513
+4–7 d;46;Null;0.799
+>7 d;70;Oberarzt;7.74
+>7 d;70;Ridge;8.753
+>7 d;70;RandomForest;8.749
+>7 d;70;ExtraTrees;8.866
+>7 d;70;XGBoost;8.552
+>7 d;70;Tweedie;8.535
+>7 d;70;Null;9.897

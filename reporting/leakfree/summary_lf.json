@@ -1,0 +1,58 @@
+{
+  "n_stays": 8348,
+  "n_patients": 7205,
+  "n_train": 6719,
+  "n_test": 1629,
+  "los_days_median": 4.84,
+  "los_days_p90": 17.08,
+  "los_days_max": 76.9,
+  "n_features_leakfree": 81,
+  "removed_leak": [
+    "proc24_8_98f_0",
+    "proc24_8_98f_10",
+    "proc24_8_98f_11"
+  ],
+  "final_model": "XGBoost",
+  "cv_mae": {
+    "Ridge": 4.32,
+    "RandomForest": 4.266,
+    "ExtraTrees": 4.237,
+    "XGBoost": 4.235,
+    "Tweedie": 4.355
+  },
+  "best_params": {
+    "Ridge": {
+      "alpha": 0.1
+    },
+    "RandomForest": {
+      "n_estimators": 500,
+      "min_samples_leaf": 2,
+      "max_features": 0.5,
+      "max_depth": 20
+    },
+    "ExtraTrees": {
+      "n_estimators": 500,
+      "min_samples_leaf": 2,
+      "max_features": 0.5,
+      "max_depth": 20
+    },
+    "XGBoost": {
+      "subsample": 0.7,
+      "reg_lambda": 5,
+      "n_estimators": 800,
+      "min_child_weight": 1,
+      "max_depth": 6,
+      "learning_rate": 0.03,
+      "colsample_bytree": 0.7
+    },
+    "Tweedie": {
+      "tweedie_variance_power": 1.2,
+      "subsample": 0.9,
+      "n_estimators": 800,
+      "min_child_weight": 5,
+      "max_depth": 8,
+      "learning_rate": 0.03,
+      "colsample_bytree": 0.9
+    }
+  }
+}

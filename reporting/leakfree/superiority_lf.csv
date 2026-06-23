@@ -1,0 +1,5 @@
+Subgruppe;Modell;n;dMAE;CI_low;CI_high;verdict
+overall;XGBoost;200;-0.532;-1.028;-0.027;physician
+2–4 d;XGBoost;84;-0.865;-1.4;-0.333;physician
+4–7 d;XGBoost;46;0.501;0.041;0.952;model
+>7 d;XGBoost;70;-0.812;-1.995;0.42;n.s.

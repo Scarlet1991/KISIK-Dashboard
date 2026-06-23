@@ -95,7 +95,26 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
 
 ## Results at a glance
 
-These are the **leakage-controlled** results from the canonical analysis
+> ⚠️ **Update (current state).** Two corrections were applied after the figures below were
+> first written and supersede the numbers in this section:
+> 1. **Cohort floor raised to LoS > 2 days** (was > 1). Development n = 8,348; prospective
+>    (no-`is_open` filter) n = 200; subgroups are now **2–4 / 4–7 / >7 d**.
+> 2. **OPS `8-98f` target leak removed.** The intensive-care complex-treatment code's suffix
+>    encodes cumulative treatment days but is time-stamped to admission, so it leaks the outcome
+>    (median LoS rises monotonically by suffix .0→2.9 d … .60→46.6 d; present in 66.6 % of
+>    retrospective but **0 %** of prospective stays). Removing it drops the apparent retrospective
+>    R² from ~0.33 to ~0.11 — the honest first-24-h signal. See `modeling/17_leak_check_8_98f.py`.
+>
+> The manuscript therefore exists in **two versions** under `reporting/`:
+> `KISIK_Frontiers_DigitalHealth_Manuskript.docx` (primary, 8-98f kept, leak documented in §4.4) and
+> `KISIK_Frontiers_DigitalHealth_Manuskript_v2_leakfree.docx` (leakage-corrected; final model XGBoost;
+> outputs in `reporting/leakfree/`, built by `modeling/19_leakfree_pipeline.py` +
+> `reporting/build_manuscript_v2_leakfree.py`). **Robust in both versions:** the physician is best
+> overall and for short (2–4 d) stays, the ML model is **significantly more accurate for 4–7 d stays**
+> (bootstrap 95 % CI of ΔMAE entirely > 0), and >7 d is a statistical tie. Target journal:
+> *Frontiers in Digital Health* (MedicinAI Research Topic).
+
+These are the original **leakage-controlled** results from the canonical analysis
 (`modeling/canonical_analysis.py`, the single source of truth for the manuscript).
 The cohort is restricted to the **three anaesthesiology-run intensive care units
 (`oebenekurz` IZ21 / IZ31 / IZ32, ward AIN)**; lower-acuity/intermediate units (e.g. IZ01)

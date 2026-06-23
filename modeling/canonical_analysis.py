@@ -38,7 +38,7 @@ asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 con=duckdb.connect()
 
 # ---------------------------------------------------------------- Kohorte
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
 df["los_days"]=df["icu_duration_h"]/24.0          # icu_duration_h ist in STUNDEN
 y=df["los_days"].values
 groups=df["pid"].fillna("unknown").astype(str).values
@@ -89,6 +89,9 @@ def pre(scale=False):
                                                ("ohe",OneHotEncoder(handle_unknown="ignore"))]),cat)])
 def ttr(reg,scale=False):
     return TransformedTargetRegressor(Pipeline([("pre",pre(scale)),("mdl",reg)]),func=np.log1p,inverse_func=np.expm1)
+def plain(reg):
+    # ohne log1p-Zieltransformation: Tweedie hat eine eigene (log-)Linkfunktion + Tweedie-Devianz-Loss
+    return Pipeline([("pre",pre(False)),("mdl",reg)])
 
 # ---------------------------------------------------------------- Hyperparametersuche (GroupKFold=4)
 gkf=GroupKFold(n_splits=4)
@@ -107,6 +110,13 @@ searches={
             "regressor__mdl__learning_rate":[0.03,0.05,0.1],"regressor__mdl__subsample":[0.7,0.9],
             "regressor__mdl__colsample_bytree":[0.7,0.9],"regressor__mdl__min_child_weight":[1,3,5],
             "regressor__mdl__reg_lambda":[1,2,5]}, "rand"),
+ # Tweedie: alternative Behandlung der rechtsschiefen LoS ueber die Tweedie-Verteilung (eigener Loss/Link),
+ # ohne log1p-Transformation; auf der ROHEN Tageszielgroesse trainiert.
+ "Tweedie": (plain(XGBRegressor(objective="reg:tweedie",random_state=RS,n_jobs=1,verbosity=0,tree_method="hist")),
+           {"mdl__n_estimators":[300,500,800],"mdl__max_depth":[4,6,8],
+            "mdl__learning_rate":[0.03,0.05,0.1],"mdl__subsample":[0.7,0.9],
+            "mdl__colsample_bytree":[0.7,0.9],"mdl__min_child_weight":[1,3,5],
+            "mdl__tweedie_variance_power":[1.2,1.4,1.6,1.8]}, "rand"),
 }
 print("Hyperparametersuche (4-fold GroupKFold auf pid) ...")
 fitted={}; cv_rows=[]; best_params={}
@@ -117,7 +127,7 @@ for name,(est,space,kind) in searches.items():
         s=RandomizedSearchCV(est,space,n_iter=12,scoring=SCORER,cv=gkf,random_state=RS,n_jobs=4)
     s.fit(Xtr,ytr,groups=gtr)
     fitted[name]=s.best_estimator_
-    best_params[name]={k.replace("regressor__mdl__",""):v for k,v in s.best_params_.items()}
+    best_params[name]={k.replace("regressor__mdl__","").replace("mdl__",""):v for k,v in s.best_params_.items()}
     cv_rows.append({"Modell":name,"CV_MAE_days":round(-s.best_score_,3)})
     print(f"  {name}: CV-MAE={-s.best_score_:.3f} d | {best_params[name]}")
 
