@@ -38,7 +38,7 @@ asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
 con=duckdb.connect()
 
 # ---------------------------------------------------------------- Kohorte
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0          # icu_duration_h ist in STUNDEN
 y=df["los_days"].values
 groups=df["pid"].fillna("unknown").astype(str).values

@@ -63,7 +63,7 @@ SUB=pd.read_csv(NOISO/"metrics_subgroups_no_isopen.csv",sep=";")
 SUP=pd.read_csv(NOISO/"superiority_vs_oberarzt.csv",sep=";")
 SUPC=SUP[SUP["Kohorte"]=="no_isopen"].copy()
 # Label-Mapping: SUB nutzt en-dash, SUPC nutzt hyphen
-bins=["2–4 d","4–7 d",">7 d"]; bins_hy=["2-4 d","4-7 d",">7 d"]
+bins=["1–2 d","2–4 d","4–7 d",">7 d"]; bins_hy=["1-2 d","2-4 d","4-7 d",">7 d"]
 ns={b:int(SUB[SUB["Subgroup"]==b]["n"].iloc[0]) for b in bins}
 
 models=["Oberarzt","Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie","Null"]

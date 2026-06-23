@@ -22,6 +22,14 @@ IMP  =pd.read_csv(LF/"feature_importance_lf.csv",sep=";")
 SUB  =pd.read_csv(LF/"metrics_subgroups_lf.csv",sep=";")
 SUP  =pd.read_csv(LF/"superiority_lf.csv",sep=";")
 BP=S["best_params"]; FKEY=S["final_model"]
+LK=json.loads((AN/"leak_8_98f_summary.json").read_text(encoding="utf-8"))
+_supd={r["Subgruppe"]:r for _,r in SUP.iterrows()}
+_BINS=["1–2 d","2–4 d","4–7 d",">7 d"]
+MODEL_SG=[k for k in _BINS if k in _supd and _supd[k]["verdict"]=="model"]
+PHYS_SG =[k for k in _BINS if k in _supd and _supd[k]["verdict"]=="physician"]
+NS_SG   =[k for k in _BINS if k in _supd and _supd[k]["verdict"]=="n.s."]
+MSG=" and ".join(MODEL_SG) if MODEL_SG else "no subgroup"
+PSG=" and ".join(PHYS_SG) if PHYS_SG else "no subgroup"
 _iso=pd.read_parquet(CAN/"alt_matrices_no_isopen"/"prospective_rebuilt_286.parquet")["__is_open__"]
 N_PROS=int(PROS.loc["Oberarzt","n"]); N_OPEN=int((_iso==1).sum()); N_DONE=int((_iso==0).sum())
 labels={"Ridge":"Ridge regression","RandomForest":"Random forest","ExtraTrees":"Extra Trees",
@@ -81,7 +89,7 @@ ar("Background:","Accurate early prediction of intensive-care-unit (ICU) length 
    "a leakage-corrected ICU-LoS model from routine first-24-hour data and validated it prospectively "
    "against senior-physician estimates.")
 ar("Methods:",f"In a single anaesthesiology-run ICU department, {S['n_stays']:,} completed adult ICU "
-   f"stays (>2 days; {S['n_patients']:,} patients) were used to develop regression models from "
+   f"stays (>1 day; {S['n_patients']:,} patients) were used to develop regression models from "
    f"{S['n_features_leakfree']} first-24-hour predictors. The OPS 8-98f complex-treatment codes were "
    "removed because their suffix encodes cumulative treatment days and leaks the outcome (see "
    "Methods). Five candidate models were tuned by patient-grouped cross-validation; the lowest "
@@ -89,12 +97,12 @@ ar("Methods:",f"In a single anaesthesiology-run ICU department, {S['n_stays']:,}
    f"{N_PROS} ICU stays with a matched senior estimate.")
 ar("Results:",f"{FINAL} had the best cross-validated MAE (hold-out MAE {RETRO.loc[FKEY,'MAE_days']:.2f} d, "
    f"R² {RETRO.loc[FKEY,'R2']:.2f}). After leak removal the development R² fell to about "
-   f"{RETRO.loc[FKEY,'R2']:.2f} (versus ~0.33 with the leaky feature), a more honest estimate of "
+   f"{RETRO.loc[FKEY,'R2']:.2f} (versus ~{LK['r2_full']:.2f} with the leaky feature), a more honest estimate of "
    f"signal. Prospectively the senior physician was more accurate overall (MAE {PROS.loc['Oberarzt','MAE']:.2f} "
-   f"vs {PROS.loc[FKEY,'MAE']:.2f} d). The clinically important pattern persisted: the physician was "
-   "clearly better for short (2–4 d) stays, whereas the model was significantly more accurate for "
-   "intermediate 4–7 day stays (paired bootstrap 95% CI of the MAE difference entirely above zero); "
-   "for very long (>7 d) stays the two were indistinguishable.")
+   f"vs {PROS.loc[FKEY,'MAE']:.2f} d), but the comparison remained subgroup-dependent: the physician "
+   f"was significantly more accurate for {PSG} stays, whereas the model was significantly more "
+   f"accurate for {MSG} stays (paired bootstrap 95% CI of the MAE difference entirely above zero); "
+   "other subgroups did not differ significantly.")
 ar("Conclusion:","Once a duration-encoding leak is removed, the model’s honest first-24-hour signal is "
    "modest and it does not outperform clinicians overall. It nonetheless retains a statistically "
    "significant, reproducible advantage for intermediate-stay patients, supporting a complementary, "
@@ -123,7 +131,7 @@ P("Single-centre prognostic-model study with retrospective development and a sep
   "admission data were linked at the level of the individual ICU stay.",align="j")
 H("2.2 Participants",2)
 P(f"The development cohort comprised {S['n_stays']:,} adult ICU stays from {S['n_patients']:,} patients, "
-  f"restricted to stays longer than two days. Patient identity kept every patient within a single "
+  f"restricted to stays longer than one day. Patient identity kept every patient within a single "
   f"partition. The prospective cohort comprised all {N_PROS} consecutive stays with a recorded senior "
   f"estimate ({N_DONE} discharged with known final LoS, {N_OPEN} still in the ICU at estimation, whose "
   "recorded LoS is a right-censored lower bound).",align="j")
@@ -134,9 +142,11 @@ P("The target was ICU LoS in days (hours/24), modelled on the log1p scale (tree/
   "target leak: the German OPS complex-treatment code is assigned once per episode with a suffix that "
   "encodes the cumulative number of treatment days, but is time-stamped to the admission day, so it "
   "silently carries the eventual LoS. Empirically, the observed median LoS increased monotonically "
-  "across suffix bands (8-98f.0 → 2.9 d; 8-98f.60 → 46.6 d), the code was present in 66.6% of "
-  "retrospective stays but 0% of prospective stays (it is not yet assigned at 24 h in live data), and "
-  "removing it lowered the apparent development R² from ~0.33 to ~0.11. All 8-98f features were "
+  f"across suffix bands ({LK['suffix_low_code']} → {LK['suffix_low_median']:.1f} d; {LK['suffix_high_code']} "
+  f"→ {LK['suffix_high_median']:.1f} d), the code was present in {LK['prev_retro_pct']:.0f}% of "
+  f"retrospective stays but {LK['prev_pros_pct']:.0f}% of prospective stays (it is not yet assigned at "
+  f"24 h in live data), and removing it lowered the apparent development R² from ~{LK['r2_full']:.2f} "
+  f"to ~{LK['r2_noleak']:.2f}. All 8-98f features were "
   f"therefore excluded, leaving {S['n_features_leakfree']} predictors.",align="j")
 H("2.4 Predictors",2)
 fd=dict(SC["feature_domains"]); fd["procedure_24h"]=fd.get("procedure_24h",13)-3
@@ -198,20 +208,20 @@ table(["Estimator","MAE (d)","Median AE (d)","RMSE (d)","R²","Bias (d)"],
       caption=f"Prospective performance, leakage-corrected (n = {N_PROS}; {N_OPEN} censored).",capnum="Table 5.")
 def sm(m,sg):
     r=SUB[(SUB["Modell"]==m)&(SUB["Subgroup"]==sg)]; return f"{r['MAE'].iloc[0]:.2f}" if len(r) else "–"
-sgs=["2–4 d","4–7 d",">7 d"]
+sgs=["1–2 d","2–4 d","4–7 d",">7 d"]
 table(["LoS subgroup","Senior physician",FINAL,"Random forest","Extra Trees"],
       [[sg,sm("Oberarzt",sg),sm(FKEY,sg),sm("RandomForest",sg),sm("ExtraTrees",sg)] for sg in sgs],
       caption=f"Prospective MAE (days) by LoS subgroup, leakage-corrected (n = {N_PROS}).",capnum="Table 6.")
-sup={r["Subgruppe"]:r for _,r in SUP.iterrows()}
-s47=sup["4–7 d"]
-P("The subgroup pattern of the primary analysis was reproduced without the leak. For intermediate 4–7 "
-  f"day stays the final model ({FINAL}) was significantly more accurate than the senior physician "
-  f"(ΔMAE {s47['dMAE']:+.2f} d, 95% bootstrap CI {s47['CI_low']:.2f} to {s47['CI_high']:.2f}; the entire "
-  "interval lies above zero). The physician was significantly more accurate for short (2–4 d) stays "
-  f"(ΔMAE {sup['2–4 d']['dMAE']:+.2f} d, CI {sup['2–4 d']['CI_low']:.2f} to {sup['2–4 d']['CI_high']:.2f}), and "
-  f"the two were statistically indistinguishable for very long (>7 d) stays (ΔMAE {sup['>7 d']['dMAE']:+.2f} d, "
-  f"CI {sup['>7 d']['CI_low']:.2f} to {sup['>7 d']['CI_high']:.2f}). That the intermediate-stay advantage "
-  "survives leak removal is the key result of this corrected analysis.",align="j")
+def _fmt(k): r=_supd[k]; return f"{k}: ΔMAE {r['dMAE']:+.2f} d, 95% CI {r['CI_low']:.2f} to {r['CI_high']:.2f}"
+_parts=[]
+if MODEL_SG: _parts.append(f"the final model ({FINAL}) was significantly more accurate than the senior "
+    "physician for "+", ".join(MODEL_SG)+" stays ("+"; ".join(_fmt(k) for k in MODEL_SG)+")")
+if PHYS_SG:  _parts.append("the physician was significantly more accurate for "+", ".join(PHYS_SG)+
+    " stays ("+"; ".join(_fmt(k) for k in PHYS_SG)+")")
+if NS_SG:    _parts.append("the two were statistically indistinguishable for "+", ".join(NS_SG)+" stays")
+P("Superiority testing on the leakage-corrected model, by subgroup (paired bootstrap 95% CI of the "
+  "MAE difference): "+"; ".join(_parts)+". The model thus retains a significant, if narrower, "
+  "subgroup advantage even after the leak is removed.",align="j")
 fig(LF/"fig_subgroup_mae_lf.png",f"Figure 3. Leakage-corrected prospective MAE by LoS subgroup (n = {N_PROS}) "
     f"with the {FINAL}-vs-physician superiority test (paired bootstrap 95% CI).")
 fig(LF/"fig_calibration_lf.png",f"Figure 4. Leakage-corrected prospective calibration (n = {N_PROS}): observed vs "
@@ -221,10 +231,10 @@ fig(LF/"fig_calibration_lf.png",f"Figure 4. Leakage-corrected prospective calibr
 H("4. Discussion",1)
 H("4.1 Principal findings",2)
 P("Removing a single duration-encoding administrative code (OPS 8-98f) cut the apparent development R² "
-  "from ~0.33 to ~0.11, exposing a modest true first-24-hour signal. Honestly evaluated, the model "
-  "does not outperform experienced clinicians overall. Yet the clinically meaningful pattern is "
-  "robust: the model is significantly more accurate than the physician for intermediate (4–7 day) "
-  "stays, the physician is better for short stays, and neither is reliable for very long stays.",align="j")
+  f"from ~{LK['r2_full']:.2f} to ~{LK['r2_noleak']:.2f}, exposing a modest true first-24-hour signal. Honestly evaluated, the model "
+  "does not outperform experienced clinicians overall. The comparison nonetheless remains "
+  f"subgroup-dependent: the model is significantly more accurate than the physician for {MSG} stays, "
+  f"whereas the physician retains a clear advantage for {PSG} stays.",align="j")
 H("4.2 Clinical impact and translation",2)
 P("The leakage correction strengthens, rather than weakens, the translational message. A model whose "
   "headline performance rests on a code unavailable at prediction time would fail silently in "

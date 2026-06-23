@@ -116,7 +116,7 @@ allrows=[]
 for cname,path in cohorts:
     pp=pd.read_parquet(path); los=pp["__los__"].to_numpy(float); arzt=pp["__arzt__"].to_numpy(float)
     Xp_df=pp[present]; P=predict_all(Xp_df)
-    subs={"overall":np.ones(len(los),bool),"2-4 d":(los>2)&(los<=4),
+    subs={"overall":np.ones(len(los),bool),"1-2 d":(los>1)&(los<=2),"2-4 d":(los>2)&(los<=4),
           "4-7 d":(los>4)&(los<=7),">7 d":los>7}
     print(f"\n{'='*78}\nKOHORTE: {cname}\n{'='*78}")
     for sg,mask in subs.items():

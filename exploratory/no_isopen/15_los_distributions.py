@@ -16,12 +16,13 @@ RETRO=BASE/"kisik2"/"kisik2_icu_ml_dataset_24h.parquet"
 asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 con=duckdb.connect()
 retro=con.execute(f"SELECT icu_duration_h/24.0 los FROM read_parquet('{RETRO.as_posix()}') "
-                  f"WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()["los"].to_numpy(float)
+                  f"WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()["los"].to_numpy(float)
 pp=pd.read_parquet(CAN/"alt_matrices_no_isopen"/"prospective_rebuilt_286.parquet")
 pros=pp["__los__"].to_numpy(float)
 
 # manuscript subgroups: 1-2, 2-4, 4-7, >7 days  (boundaries 2,4,7)
-BANDS=[(2,4,"#e8f4e9","#2e9e4f","2–4 d"),
+BANDS=[(1,2,"#e9eefb","#2f6fd0","1–2 d"),
+       (2,4,"#e8f4e9","#2e9e4f","2–4 d"),
        (4,7,"#fdf0db","#d99316","4–7 d"),
        (7,None,"#fbeaea","#d23b3b",">7 d")]
 GREY="#b3b3bd"; CURVE="#3a3a3a"; XMAX=40; BW=0.5
@@ -38,7 +39,7 @@ def build(data, title, fname, paccent):
     xs=np.linspace(d.min(),XMAX,400); ys=gaussian_kde(d)(xs)*nc*BW
     ax.plot(xs,ys,color=CURVE,lw=2.3,zorder=4)
     ymax=counts.max()*1.16; ax.set_ylim(0,ymax); ax.set_xlim(0,XMAX)
-    centers=[3.0,5.5,(7+XMAX)/2]
+    centers=[1.5,3.0,5.5,(7+XMAX)/2]
     for (lo,hi,fc,lc,lab),cx in zip(BANDS,centers):
         ax.text(cx,ymax*0.93,lab,fontsize=10,weight="bold",color=lc,ha="center",va="center",
                 bbox=dict(boxstyle="round,pad=0.3",fc="white",ec=lc,lw=1.2),zorder=5)

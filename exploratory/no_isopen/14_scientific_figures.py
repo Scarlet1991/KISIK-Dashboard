@@ -39,7 +39,7 @@ arrow(41,87.3,27,82.0); arrow(59,87.3,73,82.0)
 
 # --- LEFT: retrospective development ---
 ax.text(4,84.3,"RETROSPECTIVE — development",fontsize=10.5,weight="bold",ha="left",color="#0c447c")
-box(27,76,42,9.5,[("Eligible ICU stays",True),("AIN units · ICU LoS > 2 days",False),
+box(27,76,42,9.5,[("Eligible ICU stays",True),("AIN units · ICU LoS > 1 day",False),
                   ("first-24h features computable",False)],fc="#eaf1fb",ec="#185fa5")
 arrow(27,71.25,27,66.0)
 box(27,60,42,9.5,[("Development cohort",True),(f"{S['n_stays']:,} stays · {S['n_patients']:,} patients",False),
@@ -76,8 +76,8 @@ print("Gespeichert: fig_flow_diagram.png")
 # ============ (B) FOREST PLOT — superiority Extra Trees vs physician ============
 SUP=pd.read_csv(NOISO/"superiority_vs_oberarzt.csv",sep=";")
 D=SUP[(SUP["Kohorte"]=="no_isopen")&(SUP["Modell"]=="ExtraTrees")].copy()
-ordr=["overall","2-4 d","4-7 d",">7 d"]
-disp={"overall":"Overall","2-4 d":"2–4 d","4-7 d":"4–7 d",">7 d":">7 d"}
+ordr=["overall","1-2 d","2-4 d","4-7 d",">7 d"]
+disp={"overall":"Overall","1-2 d":"1–2 d","2-4 d":"2–4 d","4-7 d":"4–7 d",">7 d":">7 d"}
 D=D.set_index("Subgruppe").loc[ordr].reset_index()
 
 fig,ax=plt.subplots(figsize=(9.2,5.2))

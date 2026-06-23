@@ -14,8 +14,8 @@ SENIOR=AN/"los_senior_estimates_tagesausleitung_stay_level.csv"
 asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 con=duckdb.connect()
 
-dr=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
+dr=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 sen=pd.read_csv(SENIOR,sep=";"); dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)
 dp=dp.merge(sen[["tages_stay_id","best_senior_estimate_days"]],left_on="stay_id",right_on="tages_stay_id",how="inner")
 dp["arzt"]=pd.to_numeric(dp["best_senior_estimate_days"],errors="coerce"); dp=dp.dropna(subset=["arzt"]).reset_index(drop=True)
@@ -56,6 +56,7 @@ R+=[("section","Length of stay, days","",""),
     ("row","Mean ± SD", msd(dr['los']), msd(dp['los'])),
     ("row","Median [IQR]", medi(dr['los']), medi(dp['los'])),
     ("section","LoS subgroup, n (%)","",""),
+    ("row","  1–2 days", npct((dr['los']>1)&(dr['los']<=2),nR), npct((dp['los']>1)&(dp['los']<=2),nP)),
     ("row","  2–4 days", npct((dr['los']>2)&(dr['los']<=4),nR), npct((dp['los']>2)&(dp['los']<=4),nP)),
     ("row","  4–7 days", npct((dr['los']>4)&(dr['los']<=7),nR), npct((dp['los']>4)&(dp['los']<=7),nP)),
     ("row","  >7 days",  npct(dr['los']>7,nR), npct(dp['los']>7,nP)),

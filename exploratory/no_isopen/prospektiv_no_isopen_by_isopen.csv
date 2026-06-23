@@ -1,13 +1,13 @@
 Gruppe;Modell;n;MAE;MedianAE;RMSE;R2;Bias
-is_open=0 abgeschlossen;Oberarzt;126;2.69;1.366;4.584;0.058;-0.517
-is_open=0 abgeschlossen;Ridge;126;4.079;3.555;5.054;-0.145;1.931
-is_open=0 abgeschlossen;RandomForest;126;4.178;3.443;5.284;-0.252;2.12
-is_open=0 abgeschlossen;ExtraTrees;126;3.357;2.741;4.576;0.061;0.964
-is_open=0 abgeschlossen;XGBoost;126;4.002;3.514;4.939;-0.093;1.878
-is_open=0 abgeschlossen;Tweedie;126;4.234;3.316;5.433;-0.323;1.933
-is_open=1 offen/zensiert;Oberarzt;74;5.654;2.614;8.439;0.006;-4.186
-is_open=1 offen/zensiert;Ridge;74;5.996;3.818;8.813;-0.084;-2.702
-is_open=1 offen/zensiert;RandomForest;74;7.043;5.594;9.569;-0.278;-2.499
-is_open=1 offen/zensiert;ExtraTrees;74;6.231;3.339;9.355;-0.221;-3.787
-is_open=1 offen/zensiert;XGBoost;74;6.866;5.722;9.473;-0.253;-2.387
-is_open=1 offen/zensiert;Tweedie;74;8.097;6.618;10.386;-0.506;-1.996
+is_open=0 abgeschlossen;Oberarzt;193;2.011;0.893;3.796;0.219;-0.136
+is_open=0 abgeschlossen;Ridge;193;7.416;4.242;20.619;-22.056;5.827
+is_open=0 abgeschlossen;RandomForest;193;2.818;2.011;4.284;0.005;0.254
+is_open=0 abgeschlossen;ExtraTrees;193;2.636;1.661;4.14;0.07;-0.115
+is_open=0 abgeschlossen;XGBoost;193;3.004;2.106;4.372;-0.037;0.63
+is_open=0 abgeschlossen;Tweedie;193;3.308;2.303;4.564;-0.13;1.191
+is_open=1 offen/zensiert;Oberarzt;93;4.868;2.185;7.807;0.147;-3.101
+is_open=1 offen/zensiert;Ridge;93;9.454;3.654;28.875;-10.666;2.358
+is_open=1 offen/zensiert;RandomForest;93;6.201;3.224;9.368;-0.228;-3.803
+is_open=1 offen/zensiert;ExtraTrees;93;5.885;2.959;9.377;-0.23;-4.43
+is_open=1 offen/zensiert;XGBoost;93;6.011;3.204;9.12;-0.164;-3.211
+is_open=1 offen/zensiert;Tweedie;93;6.773;4.231;9.459;-0.252;-2.28

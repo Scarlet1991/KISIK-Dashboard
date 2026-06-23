@@ -28,7 +28,7 @@ RS=42; asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 bp=json.loads((CAN/"summary.json").read_text(encoding="utf-8"))["best_params"]
 
 con=duckdb.connect()
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0
 y=df["los_days"].values; groups=df["pid"].fillna("unknown").astype(str).values
 feat=pd.read_csv(FEAT,sep=";")["Feature"].tolist()
@@ -114,11 +114,11 @@ order=["Ridge","RandomForest","ExtraTrees","XGBoost","Tweedie"]
 prows=[{"Modell":"Oberarzt",**mp(los,arzt)}]+[{"Modell":n,**mp(los,preds[n])} for n in order]
 pros=pd.DataFrame(prows).set_index("Modell")
 pros.reset_index().to_csv(LF/"prospektiv_overall_lf.csv",sep=";",index=False)
-print("\n--- Prospektiv leakfree (n=200) ---"); print(pros.to_string())
+print(f"\n--- Prospektiv leakfree (n={len(los)}) ---"); print(pros.to_string())
 
 # subgroups (2-4/4-7/>7) + Null
 null=float(np.median(y[tr]))
-sg=[("2–4 d",(los>2)&(los<=4)),("4–7 d",(los>4)&(los<=7)),(">7 d",los>7)]
+sg=[("1–2 d",(los>=1)&(los<=2)),("2–4 d",(los>2)&(los<=4)),("4–7 d",(los>4)&(los<=7)),(">7 d",los>7)]
 allp={"Oberarzt":arzt,**preds,"Null":np.full(len(los),null)}
 sgrows=[]
 for lab,mask in sg:

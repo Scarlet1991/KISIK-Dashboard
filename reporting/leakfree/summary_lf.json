@@ -1,10 +1,10 @@
 {
-  "n_stays": 8348,
-  "n_patients": 7205,
-  "n_train": 6719,
-  "n_test": 1629,
-  "los_days_median": 4.84,
-  "los_days_p90": 17.08,
+  "n_stays": 12884,
+  "n_patients": 10875,
+  "n_train": 10283,
+  "n_test": 2601,
+  "los_days_median": 2.9,
+  "los_days_p90": 13.51,
   "los_days_max": 76.9,
   "n_features_leakfree": 81,
   "removed_leak": [
@@ -12,13 +12,13 @@
     "proc24_8_98f_10",
     "proc24_8_98f_11"
   ],
-  "final_model": "XGBoost",
+  "final_model": "ExtraTrees",
   "cv_mae": {
-    "Ridge": 4.32,
-    "RandomForest": 4.266,
-    "ExtraTrees": 4.237,
-    "XGBoost": 4.235,
-    "Tweedie": 4.355
+    "Ridge": 3.449,
+    "RandomForest": 3.392,
+    "ExtraTrees": 3.372,
+    "XGBoost": 3.398,
+    "Tweedie": 3.482
   },
   "best_params": {
     "Ridge": {
@@ -31,19 +31,19 @@
       "max_depth": 20
     },
     "ExtraTrees": {
-      "n_estimators": 500,
-      "min_samples_leaf": 2,
+      "n_estimators": 300,
+      "min_samples_leaf": 5,
       "max_features": 0.5,
-      "max_depth": 20
+      "max_depth": null
     },
     "XGBoost": {
-      "subsample": 0.7,
+      "subsample": 0.9,
       "reg_lambda": 5,
-      "n_estimators": 800,
+      "n_estimators": 500,
       "min_child_weight": 1,
-      "max_depth": 6,
-      "learning_rate": 0.03,
-      "colsample_bytree": 0.7
+      "max_depth": 8,
+      "learning_rate": 0.05,
+      "colsample_bytree": 0.9
     },
     "Tweedie": {
       "tweedie_variance_power": 1.2,

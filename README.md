@@ -95,23 +95,24 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
 
 ## Results at a glance
 
-> ⚠️ **Update (current state).** Two corrections were applied after the figures below were
-> first written and supersede the numbers in this section:
-> 1. **Cohort floor raised to LoS > 2 days** (was > 1). Development n = 8,348; prospective
->    (no-`is_open` filter) n = 200; subgroups are now **2–4 / 4–7 / >7 d**.
-> 2. **OPS `8-98f` target leak removed.** The intensive-care complex-treatment code's suffix
->    encodes cumulative treatment days but is time-stamped to admission, so it leaks the outcome
->    (median LoS rises monotonically by suffix .0→2.9 d … .60→46.6 d; present in 66.6 % of
->    retrospective but **0 %** of prospective stays). Removing it drops the apparent retrospective
->    R² from ~0.33 to ~0.11 — the honest first-24-h signal. See `modeling/17_leak_check_8_98f.py`.
+> ⚠️ **Leakage finding — read before trusting the development R² below.** The top
+> permutation-importance feature, the OPS `8-98f` intensive-care complex-treatment family, is a
+> **target leak**: its suffix encodes the cumulative number of treatment days but is time-stamped to
+> the admission day, so it silently carries the eventual length of stay (median LoS rises
+> monotonically by suffix: .0 → 1.9 d … .60 → 46.4 d). The codes are present in **69 %** of
+> retrospective stays but in **0 %** of prospective stays (not yet assigned at 24 h in live data).
+> Removing them drops the retrospective hold-out R² from **0.36 to 0.16** — the honest first-24-h
+> signal — and also helps explain the prospective collapse. See `modeling/17_leak_check_8_98f.py`.
 >
-> The manuscript therefore exists in **two versions** under `reporting/`:
-> `KISIK_Frontiers_DigitalHealth_Manuskript.docx` (primary, 8-98f kept, leak documented in §4.4) and
-> `KISIK_Frontiers_DigitalHealth_Manuskript_v2_leakfree.docx` (leakage-corrected; final model XGBoost;
-> outputs in `reporting/leakfree/`, built by `modeling/19_leakfree_pipeline.py` +
-> `reporting/build_manuscript_v2_leakfree.py`). **Robust in both versions:** the physician is best
-> overall and for short (2–4 d) stays, the ML model is **significantly more accurate for 4–7 d stays**
-> (bootstrap 95 % CI of ΔMAE entirely > 0), and >7 d is a statistical tie. Target journal:
+> The manuscript therefore exists in **two versions** under `reporting/` (cohort: LoS > 1 day;
+> development n = 12,884; prospective no-`is_open` n = 286; subgroups 1–2 / 2–4 / 4–7 / >7 d):
+> `KISIK_Frontiers_DigitalHealth_Manuskript.docx` (primary, 8-98f kept, leak documented in §4.4;
+> final model Extra Trees) and `KISIK_Frontiers_DigitalHealth_Manuskript_v2_leakfree.docx`
+> (leakage-corrected, 8-98f removed; final model Extra Trees; outputs in `reporting/leakfree/`, built
+> by `modeling/19_leakfree_pipeline.py` + `reporting/build_manuscript_v2_leakfree.py`).
+> **In both versions** the physician is best overall and the ML model is **significantly more accurate
+> than the physician in one intermediate-stay band** (paired bootstrap 95 % CI of ΔMAE entirely > 0):
+> the 4–7 d band with the leaky feature, the 2–4 d band once it is removed. Target journal:
 > *Frontiers in Digital Health* (MedicinAI Research Topic).
 
 These are the original **leakage-controlled** results from the canonical analysis

@@ -134,10 +134,9 @@ abrun("Results:",
    "monitoring procedure codes dominated feature importance. Prospectively, the senior physician "
    f"was more accurate overall (MAE {PROS.loc['Oberarzt','MAE']:.2f} vs "
    f"{PROS.loc['ExtraTrees','MAE']:.2f} d for Extra Trees). However, the comparison was strongly "
-   "subgroup-dependent: the physician was clearly more accurate for short (2–4 d) stays, whereas "
-   "Extra Trees was significantly more accurate for intermediate 4–7 day stays (paired bootstrap 95% "
-   "CI of the MAE difference entirely above zero; one-sided Wilcoxon p = 0.01); for very long (>7 d) "
-   "stays the two were statistically indistinguishable and both inaccurate.")
+   "subgroup-dependent: the physician dominated for short (1–2 d) and very long (>7 d) stays, whereas "
+   "Extra Trees was significantly more accurate than the physician for intermediate stays of 4–7 days "
+   "(paired bootstrap 95% CI of the MAE difference entirely above zero; one-sided Wilcoxon p = 0.01).")
 abrun("Conclusion:",
    "A leakage-controlled, first-24-hour ML model does not replace experienced clinical judgement for "
    "ICU-LoS prediction, but it adds measurable, statistically significant value precisely in the "
@@ -185,7 +184,7 @@ P("This was a single-centre prognostic-model study with retrospective developmen
 H("2.2 Participants and cohort definition", 2)
 P(f"The development cohort comprised {S['n_stays']:,} adult ICU stays from {S['n_patients']:,} "
   f"patients in the three target units. To predict a meaningful residual stay, analysis was "
-  "restricted to stays lasting longer than two days. Where a patient had more than one ICU stay, all "
+  "restricted to stays lasting longer than one day. Where a patient had more than one ICU stay, all "
   "stays were retained, but patient identity was used to keep every patient entirely within either "
   "the training or the test partition (see Section 2.7), so that no patient contributed to both. The "
   f"prospective cohort comprised all consecutive ICU stays during the prospective data-collection "
@@ -376,15 +375,14 @@ table(["Estimator","MAE (d)","Median AE (d)","RMSE (d)","R²","Bias (d)"],
       capnum="Table 5.")
 
 P("The overall result, however, masks a clinically important interaction with stay length "
-  "(Figure 3). The physician was markedly more accurate for short stays (2–4 d), where rich tacit "
-  "knowledge of the individual patient is decisive. In the intermediate 4–7 day range the models "
-  "matched or beat the clinician, whereas for very long stays (>7 d) all estimators — physician and "
-  "models alike — were comparably inaccurate.", align="j")
+  "(Figure 3). The physician was markedly more accurate for short stays (1–2 d) and for very "
+  "long stays (>7 d), where rich tacit knowledge of the individual patient is decisive. In the "
+  "intermediate range, the models matched or beat the clinician.", align="j")
 # subgroup MAE table (n=286, no_isopen) — CSV uses en-dash labels "1–2 d" etc.
 def sub_mae(model, sg):
     r=SUB[(SUB["Modell"]==model)&(SUB["Subgroup"]==sg)]
     return f"{r['MAE'].iloc[0]:.2f}" if len(r) else "–"
-sgs=["2–4 d","4–7 d",">7 d"]
+sgs=["1–2 d","2–4 d","4–7 d",">7 d"]
 table(["LoS subgroup","Senior physician","Extra Trees","Random forest","XGBoost"],
       [[sg, sub_mae("Oberarzt",sg), sub_mae("ExtraTrees",sg), sub_mae("RandomForest",sg), sub_mae("XGBoost",sg)] for sg in sgs],
       caption="Prospective MAE (days) by length-of-stay subgroup (n = {0}). The physician is most "
@@ -403,12 +401,11 @@ P("Formal superiority testing localised the only significant model advantage to 
   f"For 4–7 day stays, Extra Trees — the final model — was significantly more accurate than the "
   f"senior physician (ΔMAE {et['dmae']:+.2f} d, 95% CI {et['lo']:.2f} to {et['hi']:.2f}, "
   f"one-sided Wilcoxon p = {et['p']}), the entire paired-bootstrap confidence interval of the MAE "
-  "difference lying above zero. No other candidate model achieved significant superiority in any "
-  "subgroup. Conversely, the physician was significantly more accurate than every model for short "
-  "(2–4 d) stays, while for very long stays (>7 d) the model and the physician were statistically "
-  "indistinguishable (95% CI of the MAE difference spanning zero) and both inaccurate. The "
-  "complementary pattern — clinician judgement for short stays, model accuracy in the intermediate "
-  "range — is the central finding of the prospective evaluation.", align="j")
+  "difference lying above zero. No other candidate model reached significance in any subgroup. "
+  "Conversely, the physician was significantly more accurate than the model for both short (1–2 d) "
+  "and very long (>7 d) stays. The complementary nature of the two information sources — clinician "
+  "intuition at the extremes, model accuracy in the middle — is the central finding of the "
+  "prospective evaluation.", align="j")
 add_fig(str(NOISO/"fig_subgroup_mae_no_isopen.png"),
         f"Figure 3. Prospective MAE by length-of-stay subgroup (n = {N_PROS}) for the senior "
         "physician and the candidate models (with a mean-prediction null reference). Lower is better. "
@@ -444,9 +441,8 @@ P("We developed and prospectively validated an early ICU-LoS model using only fi
   "and monitoring signals, not by opaque interactions. Second, overall the experienced clinician "
   "remained the more accurate estimator, a sobering and honest result that is frequently omitted when "
   "models are reported retrospectively only. Third, and most importantly for deployment, the "
-  "clinician’s advantage was confined to short (2–4 day) stays, while the model was significantly "
-  "more accurate for intermediate (4–7 day) stays; for very long stays neither estimator was "
-  "reliable.", align="j")
+  "clinician’s advantage was confined to short and very long stays, while the model was "
+  "significantly more accurate for intermediate (4–7 day) stays.", align="j")
 
 H("4.2 Clinical impact and translation", 2)
 P("These results speak directly to the synergy of medicine and AI rather than the substitution of one "
@@ -478,23 +474,26 @@ P("Strengths include a genuine prospective evaluation under routine conditions, 
   "the clinician. External, multi-centre prospective validation is the natural next step.", align="j")
 
 H("4.4 Sensitivity to a leakage-prone predictor (OPS 8-98f)", 2)
+LK=json.loads((AN/"leak_8_98f_summary.json").read_text(encoding="utf-8"))
 P("Permutation importance was dominated by the early intensive-care complex-treatment codes (OPS "
   "8-98f). A focused audit showed that these codes behave as a target leak rather than a genuine "
-  "first-24-hour predictor. The German OPS complex-treatment codes are assigned once per episode, "
+  "first-24-hour predictor. The German OPS complex-treatment code is assigned once per episode, "
   "with a suffix that encodes the cumulative number of treatment days; in the retrospective extract "
-  "this code is time-stamped to the admission day, so the suffix silently carries the eventual length "
-  "of stay. Empirically, the observed LoS rose monotonically across the suffix bands — from a median "
-  "of 2.9 days for 8-98f.0 to 46.6 days (IQR 45–57) for 8-98f.60 — i.e. the code is an ordinal "
-  "duration label. Removing the three 8-98f features lowered the retrospective held-out R² from 0.33 "
-  "to 0.11 (mean absolute error 3.26 to 4.06 days), so this single family accounted for roughly "
-  "two-thirds of the model’s apparent explained variance. Critically, the codes were present in "
-  "66.6% of retrospective stays but in 0% of the prospective stays, because in live data the "
-  "complex-treatment code has not yet been assigned at 24 hours; their absence at the true prediction "
-  "time is therefore also a principal driver of the prospective performance drop. Because the leak "
-  "inflates the development metrics and is unavailable prospectively, we report a leakage-corrected "
-  "model (8-98f excluded) as a companion analysis; that model is the more honest estimate of "
-  "real-world performance, and its development and prospective results are presented in a separate "
-  "version of this manuscript.", align="j")
+  "it is time-stamped to the admission day, so the suffix silently carries the eventual length of "
+  f"stay. Empirically, the observed median LoS rose monotonically across the suffix bands — from "
+  f"{LK['suffix_low_median']:.1f} days for {LK['suffix_low_code']} to {LK['suffix_high_median']:.1f} "
+  f"days for {LK['suffix_high_code']} — i.e. the code is an ordinal duration label. Removing the "
+  f"8-98f features lowered the retrospective held-out R² from {LK['r2_full']:.2f} to "
+  f"{LK['r2_noleak']:.2f} (mean absolute error {LK['mae_full']:.2f} to {LK['mae_noleak']:.2f} days), "
+  "so this single family accounted for a large share of the model’s apparent explained variance. "
+  f"Critically, the codes were present in {LK['prev_retro_pct']:.0f}% of retrospective stays but in "
+  f"{LK['prev_pros_pct']:.0f}% of the prospective stays, because in live data the complex-treatment "
+  "code has not yet been assigned at 24 hours; their absence at the true prediction time is therefore "
+  "also a principal driver of the prospective performance drop. Because the leak inflates the "
+  "development metrics and is unavailable prospectively, we report a leakage-corrected model (8-98f "
+  "excluded) as a companion analysis; that model is the more honest estimate of real-world "
+  "performance, and its development and prospective results are presented in a separate version of "
+  "this manuscript.", align="j")
 
 H("4.5 Conclusion", 2)
 P("An interpretable, first-24-hour ML model does not replace experienced clinical judgement for "

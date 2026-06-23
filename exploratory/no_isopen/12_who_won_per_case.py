@@ -29,7 +29,7 @@ print(f"Median |Fehler|:    Oberarzt {np.median(ea):.2f} d | Extra Trees {np.med
 # nach LoS-Subgruppe
 print("\n=== Gewinnquote nach LoS-Subgruppe ===")
 print(f"{'Subgruppe':<10}{'n':>5}{'Arzt %':>9}{'ET %':>8}{'Gleich %':>10}{'Arzt MAE':>10}{'ET MAE':>9}")
-subs=[("2-4 d",(obs>2)&(obs<=4)),("4-7 d",(obs>4)&(obs<=7)),(">7 d",obs>7)]
+subs=[("1-2 d",(obs>=1)&(obs<=2)),("2-4 d",(obs>2)&(obs<=4)),("4-7 d",(obs>4)&(obs<=7)),(">7 d",obs>7)]
 for lab,m in subs:
     k=int(m.sum())
     print(f"{lab:<10}{k:>5}{100*oa_win[m].mean():>8.0f}%{100*et_win[m].mean():>7.0f}%{100*tie[m].mean():>9.0f}%{ea[m].mean():>10.2f}{ee[m].mean():>9.2f}")

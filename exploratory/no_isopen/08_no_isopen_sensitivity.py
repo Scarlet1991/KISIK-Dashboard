@@ -45,7 +45,7 @@ def sanitize(v):
 # ---------------- Training (kanonisch, beste Hyperparameter) ----------------
 allowed=[("AIN","IZ32"),("AIN","IZ21"),("AIN","IZ31")]  # nur AIN-Intensiveinheiten IZ32/IZ21/IZ31
 asql=", ".join(f"('{w}','{o}')" for w,o in allowed)
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0
 feat=pd.read_csv(FEAT,sep=";")["Feature"].tolist()
 present=[f for f in feat if f in df.columns and not f.startswith(("lab_","vital_","proc_","zugang_"))]
@@ -78,7 +78,7 @@ print(f"Training (beste Hyperparameter aus summary.json) ... ExtraTrees={bp['Ext
 # ---------------- prospektive Kohorte + Senior-Match ----------------
 # gleiche Stations-/Einheiten-Filter wie retrospektiv (AIN IZ32/21/31), nur abgeschlossene
 # Aufenthalte (is_open=0) mit tatsaechlicher LoS > 1 Tag
-dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()  # ALTER ANSATZ: KEIN is_open-Filter (offene/zensierte Stays einbezogen)
+dp=con.execute(f"SELECT * FROM read_parquet('{PROS.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()  # ALTER ANSATZ: KEIN is_open-Filter (offene/zensierte Stays einbezogen)
 dp["los_days"]=dp["icu_duration_h"]/24.0
 sen=pd.read_csv(SENIOR,sep=";"); dp["stay_id"]=dp["stay_id"].astype(str); sen["tages_stay_id"]=sen["tages_stay_id"].astype(str)
 mg=dp.merge(sen,left_on="stay_id",right_on="tages_stay_id",how="inner")
@@ -289,7 +289,7 @@ print("Figur gespeichert: fig_mae_by_isopen.png")
 
 # ---- Figur 3: Subgruppen-MAE nach LoS-Kategorie (4 Bins) ----
 null_pred_val=float(y[tr].mean())
-sg_bins=[("2–4 d",(yt>2)&(yt<=4)),("4–7 d",(yt>4)&(yt<=7)),(">7 d",yt>7)]
+sg_bins=[("1–2 d",(yt>=1)&(yt<=2)),("2–4 d",(yt>2)&(yt<=4)),("4–7 d",(yt>4)&(yt<=7)),(">7 d",yt>7)]
 all_sg_preds={"Oberarzt":arzt,**{n:np.clip(m.predict(Xp),0,None) for n,m in models.items()},"Null":np.full(len(yt),null_pred_val)}
 sg_rows=[]
 for sg_label,mask in sg_bins:

@@ -1,0 +1,13 @@
+{
+  "r2_full": 0.358,
+  "r2_noleak": 0.158,
+  "mae_full": 2.75,
+  "mae_noleak": 3.29,
+  "dR2": -0.2,
+  "prev_retro_pct": 69.3,
+  "prev_pros_pct": 0.0,
+  "suffix_low_code": "8-98f.0",
+  "suffix_low_median": 1.9,
+  "suffix_high_code": "8-98f.60",
+  "suffix_high_median": 46.4
+}

@@ -18,15 +18,15 @@ et=np.clip(pp["__pred_ExtraTrees__"].to_numpy(float),0,None); iso=pp["__is_open_
 # retrospektive LoS fuer den LoS-Mix-Streifen
 _asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 retro_los=duckdb.connect().execute(f"SELECT icu_duration_h/24.0 los FROM read_parquet('{(BASE/'kisik2'/'kisik2_icu_ml_dataset_24h.parquet').as_posix()}') "
-    f"WHERE (wardshort,oebenekurz) IN ({_asql}) AND icu_duration_h/24.0>2").df()["los"].to_numpy(float)
-def _shares(d): return [100*(((d>2)&(d<=4)).mean()),100*(((d>4)&(d<=7)).mean()),100*((d>7).mean())]
+    f"WHERE (wardshort,oebenekurz) IN ({_asql}) AND icu_duration_h/24.0>1").df()["los"].to_numpy(float)
+def _shares(d): return [100*(((d>1)&(d<=2)).mean()),100*(((d>2)&(d<=4)).mean()),100*(((d>4)&(d<=7)).mean()),100*((d>7).mean())]
 ea=np.abs(arzt-obs); ee=np.abs(et-obs); TIE=0.25; diff=ea-ee
 et_win=diff>TIE; oa_win=diff<-TIE; tie=~(et_win|oa_win)
 RED="#c0392b"; BLUE="#185fa5"; GREY="#b4b2a9"
 
 # ============ (1) WIN-RATE: diverging stacked bars + error scatter ============
 subs=[("Overall",np.ones(len(obs),bool)),(">7 d",obs>7),("4–7 d",(obs>4)&(obs<=7)),
-      ("2–4 d",(obs>2)&(obs<=4))]
+      ("2–4 d",(obs>2)&(obs<=4)),("1–2 d",(obs>=1)&(obs<=2))]
 fig,(axL,axR)=plt.subplots(1,2,figsize=(13.5,5.6),gridspec_kw={"width_ratios":[1.15,1]})
 
 # Panel A: diverging bars centred on the tie band
@@ -113,15 +113,15 @@ txt(49.9,55.6,"frozen\nmodel",8.6,"bold","#1f4e79",ha="center")
 # --- Subgroup distribution strip (bottom) ---
 txt(50,35,"Length-of-stay mix (share of stays)",11,"bold","#222",ha="center")
 _sr=_shares(retro_los); _sp=_shares(obs)
-bins=[(lab,round(_sr[i]),round(_sp[i])) for i,lab in enumerate(["2–4 d","4–7 d",">7 d"])]  # (label, retro%, pros%)
-x0=16; bw=22; gap=6
+bins=[(lab,round(_sr[i]),round(_sp[i])) for i,lab in enumerate(["1–2 d","2–4 d","4–7 d",">7 d"])]  # (label, retro%, pros%)
+x0=14; bw=18; gap=4
 for i,(lab,rp,ppc) in enumerate(bins):
     bx=x0+i*(bw+gap)
-    ax.add_patch(FancyBboxPatch((bx,18),bw*rp/45,8,boxstyle="square,pad=0",fc="#85b7eb",ec="white",lw=1))
-    ax.add_patch(FancyBboxPatch((bx,8),bw*ppc/45,8,boxstyle="square,pad=0",fc="#f0997b",ec="white",lw=1))
+    ax.add_patch(FancyBboxPatch((bx,18),bw*rp/35,8,boxstyle="square,pad=0",fc="#85b7eb",ec="white",lw=1))
+    ax.add_patch(FancyBboxPatch((bx,8),bw*ppc/35,8,boxstyle="square,pad=0",fc="#f0997b",ec="white",lw=1))
     txt(bx,28.5,lab,9.5,"bold","#222")
-    txt(bx+bw*rp/45+0.6,22,f"{rp}%",8.6,c="#0c447c",va="center")
-    txt(bx+bw*ppc/45+0.6,12,f"{ppc}%",8.6,c="#922",va="center")
-txt(x0,3.5,"retrospective",9,"bold","#185fa5"); txt(x0+26,3.5,"prospective",9,"bold","#c0392b")
+    txt(bx+bw*rp/35+0.6,22,f"{rp}%",8.6,c="#0c447c",va="center")
+    txt(bx+bw*ppc/35+0.6,12,f"{ppc}%",8.6,c="#922",va="center")
+txt(x0,3.5,"retrospective",9,"bold","#185fa5"); txt(x0+22,3.5,"prospective",9,"bold","#c0392b")
 fig.savefig(str(NOISO/"fig_data_pools_overview.png"),dpi=300,bbox_inches="tight"); plt.close(fig)
 print("Gespeichert: fig_data_pools_overview.png")

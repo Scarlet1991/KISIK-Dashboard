@@ -24,7 +24,7 @@ RS=42; asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 bp=json.loads((CAN/"summary.json").read_text(encoding="utf-8"))["best_params"]["ExtraTrees"]
 
 con=duckdb.connect()
-df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()
+df=con.execute(f"SELECT * FROM read_parquet('{RETRO.as_posix()}') WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()
 df["los_days"]=df["icu_duration_h"]/24.0
 y=df["los_days"].values; groups=df["pid"].fillna("unknown").astype(str).values
 feat=pd.read_csv(FEAT,sep=";")["Feature"].tolist()
@@ -78,3 +78,13 @@ print(f"\nΔ durch 8-98f.*:   R² {full[0]:.3f} -> {no_f[0]:.3f} (Δ {no_f[0]-fu
 print(f"8-98f.* allein:    R² {only_f[0]:.3f}  MAE {only_f[1]:.2f} d  (vs Gesamtkohorte-Median-Baseline)")
 base_mae=mean_absolute_error(y[te],np.full(len(te),np.median(y[tr])))
 print(f"Median-Baseline:   MAE {base_mae:.2f} d, R²=0")
+
+# ---------- summary JSON for the manuscript (dynamic leak numbers) ----------
+anyf=df[allcols].apply(lambda s:pd.to_numeric(s,errors="coerce").fillna(0)>0).any(axis=1)
+lo,hi=rows[0],rows[-1]
+summ={"r2_full":round(full[0],3),"r2_noleak":round(no_f[0],3),"mae_full":round(full[1],2),"mae_noleak":round(no_f[1],2),
+      "dR2":round(no_f[0]-full[0],3),"prev_retro_pct":round(100*float(anyf.mean()),1),"prev_pros_pct":0.0,
+      "suffix_low_code":lo["code"],"suffix_low_median":lo["median_los"],
+      "suffix_high_code":hi["code"],"suffix_high_median":hi["median_los"]}
+json.dump(summ,open(AN/"leak_8_98f_summary.json","w"),indent=2)
+print("Summary:",summ)

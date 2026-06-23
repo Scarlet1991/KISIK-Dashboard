@@ -16,20 +16,20 @@ RETRO=BASE/"kisik2"/"kisik2_icu_ml_dataset_24h.parquet"
 asql="('AIN','IZ32'), ('AIN','IZ21'), ('AIN','IZ31')"
 con=duckdb.connect()
 retro=con.execute(f"SELECT icu_duration_h/24.0 los FROM read_parquet('{RETRO.as_posix()}') "
-                  f"WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>2").df()["los"].to_numpy(float)
+                  f"WHERE (wardshort,oebenekurz) IN ({asql}) AND icu_duration_h/24.0>1").df()["los"].to_numpy(float)
 pros=pd.read_parquet(CAN/"alt_matrices_no_isopen"/"prospective_rebuilt_286.parquet")["__los__"].to_numpy(float)
 
 XMAX=40; BW=0.5
 R_C="#185fa5"; P_C="#d9663b"   # retro blue, prospective orange
-BOUND=[4,7]; BANDLAB=[(3,"2–4 d"),(5.5,"4–7 d"),((7+XMAX)/2,">7 d")]
+BOUND=[2,4,7]; BANDLAB=[(1.5,"1–2 d"),(3,"2–4 d"),(5.5,"4–7 d"),((7+XMAX)/2,">7 d")]
 
 fig,ax=plt.subplots(figsize=(13,6.5))
-# faint subgroup bands + boundaries (cohort floor at 2 days)
-band_fc=["#eef6ef","#fdf4e6","#fbeeee"]
-edges_b=[2]+BOUND+[XMAX]
-for i in range(3):
+# faint subgroup bands + boundaries
+band_fc=["#eef3fb","#eef6ef","#fdf4e6","#fbeeee"]
+edges_b=[1]+BOUND+[XMAX]
+for i in range(4):
     ax.axvspan(edges_b[i],edges_b[i+1],color=band_fc[i],zorder=0)
-for b in [2]+BOUND: ax.axvline(b,color="#999",ls="--",lw=1.1,zorder=1)
+for b in BOUND: ax.axvline(b,color="#999",ls="--",lw=1.1,zorder=1)
 
 bins=np.arange(0,XMAX+BW,BW); ctr=(bins[:-1]+bins[1:])/2
 def pct_hist(d):
@@ -49,15 +49,15 @@ ax.set_xlabel("Observed ICU length of stay (days)",fontsize=12,weight="bold")
 ax.set_ylabel("Share of stays (%, per 0.5-day bin)",fontsize=12,weight="bold")
 ax.set_title("Observed ICU length-of-stay distribution — retrospective vs prospective cohort",fontsize=14,weight="bold",pad=14)
 
-def shares(d): return [100*(((d>2)&(d<=4)).mean()),100*(((d>4)&(d<=7)).mean()),100*((d>7).mean())]
+def shares(d): return [100*(((d>1)&(d<=2)).mean()),100*(((d>2)&(d<=4)).mean()),100*(((d>4)&(d<=7)).mean()),100*((d>7).mean())]
 sr=shares(retro); sp=shares(pros)
 leg=[Line2D([0],[0],color=R_C,lw=2.6,label=f"Retrospective — development (n={len(retro):,}, median {np.median(retro):.1f} d)"),
      Line2D([0],[0],color=P_C,lw=2.6,label=f"Prospective — evaluation (n={len(pros)}, median {np.median(pros):.1f} d)"),
      Patch(fc=R_C,alpha=0.30,label="histogram (retrospective)"),Patch(fc=P_C,alpha=0.30,label="histogram (prospective)")]
 ax.legend(handles=leg,fontsize=9.5,loc="upper right",framealpha=0.95)
-sub=("subgroup share  2–4 / 4–7 / >7 d:   "
-     f"retro {sr[0]:.0f}/{sr[1]:.0f}/{sr[2]:.0f}%   ·   "
-     f"prosp {sp[0]:.0f}/{sp[1]:.0f}/{sp[2]:.0f}%")
+sub=("subgroup share  1–2 / 2–4 / 4–7 / >7 d:   "
+     f"retro {sr[0]:.0f}/{sr[1]:.0f}/{sr[2]:.0f}/{sr[3]:.0f}%   ·   "
+     f"prosp {sp[0]:.0f}/{sp[1]:.0f}/{sp[2]:.0f}/{sp[3]:.0f}%")
 ax.text(0.5,1.005,sub,transform=ax.transAxes,ha="center",fontsize=9.5,color="#555")
 ax.text(0.995,-0.13,f"Axis truncated at {XMAX} d (retro max {retro.max():.0f} d, prosp max {pros.max():.0f} d)",
         transform=ax.transAxes,ha="right",fontsize=8.5,style="italic",color="#777")
