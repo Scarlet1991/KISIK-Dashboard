@@ -227,6 +227,29 @@ fig(LF/"fig_subgroup_mae_lf.png",f"Figure 3. Leakage-corrected prospective MAE b
 fig(LF/"fig_calibration_lf.png",f"Figure 4. Leakage-corrected prospective calibration (n = {N_PROS}): observed vs "
     "predicted (deciles, 95% CI) for the final model and the senior physician.")
 
+H("3.4 Comparison with a constant-prediction baseline",2)
+NB=pd.read_csv(LF/"null_baseline_stats_lf.csv",sep=";")
+def _nb(coh,base): return NB[(NB["cohort"]==coh)&(NB["baseline"]==base)].iloc[0]
+rmean=_nb("RETROSPEKTIV Hold-out","Trainings-Mittelwert"); rmed=_nb("RETROSPEKTIV Hold-out","Trainings-Median")
+pmean=_nb("PROSPEKTIV no_isopen","Trainings-Mittelwert"); pmed=_nb("PROSPEKTIV no_isopen","Trainings-Median")
+prsq=_nb("PROSPEKTIV no_isopen","Eval-mean (R2 test)")
+P("To confirm that the leakage-corrected model carries genuine signal rather than merely reproducing "
+  "the average stay, we benchmarked it against a constant prediction — the training-set mean and the "
+  "MAE-optimal training-set median — using a one-sided paired Wilcoxon signed-rank test on the "
+  "per-stay absolute errors, a paired t-test, and a paired bootstrap (B = 5,000). Retrospectively the "
+  f"model was significantly more accurate than both constants (vs mean ΔMAE +{rmean['dMAE']:.2f} d; vs "
+  f"median +{rmed['dMAE']:.2f} d; all p < 0.001) and explained variance beyond the mean (R² "
+  f"{rmean['R2_model']:.2f}, 95% CI {rmean['R2_CI_low']:.2f} to {rmean['R2_CI_high']:.2f}). "
+  "Prospectively it remained significantly more accurate than both constants in mean absolute error "
+  f"(vs mean ΔMAE +{pmean['dMAE']:.2f} d, p < 0.001; vs median +{pmed['dMAE']:.2f} d, Wilcoxon "
+  f"p = {pmed['wilcoxon_p']}), but it did not explain additional variance out of sample: the "
+  f"prospective R² was negative ({prsq['R2_model']:.2f}, 95% CI {prsq['R2_CI_low']:.2f} to "
+  f"{prsq['R2_CI_high']:.2f}). This dissociation is outlier-driven — the model beats the constant for "
+  "the majority of stays (rank-based test favours the model) but is penalised on squared error by a "
+  "few severely under-predicted long stays. The honest reading is that the model adds small but "
+  "statistically significant accuracy over a naive baseline for typical stays, while offering no "
+  "reliable advantage for the long-stay tail.",align="j")
+
 # 4 DISCUSSION
 H("4. Discussion",1)
 H("4.1 Principal findings",2)

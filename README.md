@@ -104,16 +104,25 @@ Not included — provide a local KISIK extract. Expected tables (linked by case 
 > Removing them drops the retrospective hold-out R² from **0.36 to 0.16** — the honest first-24-h
 > signal — and also helps explain the prospective collapse. See `modeling/17_leak_check_8_98f.py`.
 >
-> The manuscript therefore exists in **two versions** under `reporting/` (cohort: LoS > 1 day;
-> development n = 12,884; prospective no-`is_open` n = 286; subgroups 1–2 / 2–4 / 4–7 / >7 d):
-> `KISIK_Frontiers_DigitalHealth_Manuskript.docx` (primary, 8-98f kept, leak documented in §4.4;
-> final model Extra Trees) and `KISIK_Frontiers_DigitalHealth_Manuskript_v2_leakfree.docx`
-> (leakage-corrected, 8-98f removed; final model Extra Trees; outputs in `reporting/leakfree/`, built
-> by `modeling/19_leakfree_pipeline.py` + `reporting/build_manuscript_v2_leakfree.py`).
-> **In both versions** the physician is best overall and the ML model is **significantly more accurate
-> than the physician in one intermediate-stay band** (paired bootstrap 95 % CI of ΔMAE entirely > 0):
-> the 4–7 d band with the leaky feature, the 2–4 d band once it is removed. Target journal:
-> *Frontiers in Digital Health* (MedicinAI Research Topic).
+> **The primary analysis is now the leakage-corrected, no-`is_open` evaluation** (8-98f removed):
+> `reporting/KISIK_Frontiers_DigitalHealth_Manuskript_v2_leakfree.docx`, built by
+> `modeling/19_leakfree_pipeline.py` → `reporting/leakfree/` + `reporting/build_manuscript_v2_leakfree.py`.
+> Cohort: LoS > 1 day; development n = 12,884; prospective no-`is_open` **n = 286** (193 discharged +
+> 93 censored); final model **Extra Trees**; subgroups 1–2 / 2–4 / 4–7 / >7 d.
+> `KISIK_Frontiers_DigitalHealth_Manuskript.docx` is retained as the **companion that documents the
+> leak** (8-98f kept, §4.4).
+>
+> Headline results of the leakage-corrected primary analysis:
+> - **Senior physician best overall** (prospective MAE 2.94 d vs 3.72 d for the model).
+> - The model is **significantly more accurate than the physician in one intermediate band** (2–4 d;
+>   paired bootstrap 95 % CI of ΔMAE entirely > 0); the physician dominates the extremes (1–2 d, >7 d).
+> - **vs a constant-prediction baseline** (`modeling/22_vs_null_stats.py` →
+>   `reporting/leakfree/null_baseline_stats_lf.csv`): the model is significantly better than mean/median
+>   prediction by MAE (prospective p < 0.001 vs mean, p = 0.006 vs median) but explains **no additional
+>   variance out of sample** (prospective R² = −0.10, 95 % CI [−0.18, −0.04]); the gain is robust-mean,
+>   tail-limited. Retrospectively it is unambiguously better (R² 0.16, 95 % CI [0.12, 0.20]).
+>
+> Target journal: *Frontiers in Digital Health* (MedicinAI Research Topic).
 
 These are the original **leakage-controlled** results from the canonical analysis
 (`modeling/canonical_analysis.py`, the single source of truth for the manuscript).

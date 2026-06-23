@@ -1,0 +1,9 @@
+cohort;error;baseline;MAE_model;MAE_null;dMAE;wilcoxon_p;ttest_p;boot_p;R2_model;R2_CI_low;R2_CI_high;verdict;dMSE
+RETROSPEKTIV Hold-out;MAE;Trainings-Mittelwert;3.288;4.392;1.104;<0.001;<0.001;<0.001;0.158;0.12;0.197;model better;
+RETROSPEKTIV Hold-out;MAE;Trainings-Median;3.288;3.721;0.433;<0.001;<0.001;<0.001;0.158;0.12;0.197;model better;
+RETROSPEKTIV Hold-out;MAE;Eval-Mittelwert;3.288;4.381;1.094;<0.001;<0.001;<0.001;0.158;0.12;0.197;model better;
+RETROSPEKTIV Hold-out;MSE/R2;Eval-mean (R2 test);;;;<0.001;<0.001;<0.001;0.158;0.12;0.197;explains variance (R2>0);7.021
+PROSPEKTIV no_isopen;MAE;Trainings-Mittelwert;3.723;4.334;0.611;<0.001;<0.001;<0.001;-0.104;-0.175;-0.037;model better;
+PROSPEKTIV no_isopen;MAE;Trainings-Median;3.723;3.883;0.16;0.006;0.007;0.007;-0.104;-0.175;-0.037;model better;
+PROSPEKTIV no_isopen;MAE;Eval-Mittelwert;3.723;4.432;0.71;<0.001;<0.001;<0.001;-0.104;-0.175;-0.037;model better;
+PROSPEKTIV no_isopen;MSE/R2;Eval-mean (R2 test);;;;0.010;0.988;0.991;-0.104;-0.175;-0.037;worse than mean (R2<0);-4.264
