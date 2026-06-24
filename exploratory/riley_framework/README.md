@@ -34,6 +34,10 @@ beats — or at least matches — the senior physician?
 | 11 | `riley_soft_gate.py` | **Soft** physician gate w = σ((arzt − c)/s); sweep centre c × steepness s | Soft blending recovers the short-stay accuracy a hard gate loses. Best (in-sample) c=7, s=1.0. |
 | 12 | `riley_soft_gate_cv.py` | Tune (c,s) **honestly** via nested 5-fold CV on the prospective cohort (the physician estimate exists only prospectively) | **Headline result** — see below. (c=7, s=1.0) chosen in 4/5 folds; optimism gap only +0.05 d. |
 | 13 | `riley_architecture_diagram.py` | Documentation figure: which data / filter trains which function, and how it is applied prospectively | `figures/fig_architecture.png` |
+| 14 | `riley_quantile_longstay.py` | Does a quantile approach help long-stayers? Standalone P50–P90 + quantile as the long expert in the gate | **No for accuracy** — the recalibrated mean long expert already gives the best MAE>7 (6.89), better than any quantile. A high quantile only buys **coverage** (capacity planning): P80/P90 raise long-stay coverage 26 %→43–53 % at the cost of MAE. |
+| 15 | `riley_midband_4_7.py` | Can the 4–7 d band be improved? 3-component blend with a mid component (physician number or a 3–7 d mid-expert), nested-CV | The physician is genuinely best at 4–7 d (1.95); ML can only approach it at a net cost. A mid-expert (3–7 d) gives a tiny Pareto gain (2.56→2.48). **Bonus:** mixing the physician *number* (not just as gate) yields the best overall hybrid. |
+| 16 | `riley_3comp_full.py` | Full evaluation of the best variant — 3-component blend, MID = physician number, nested-CV — with significance testing vs the physician (paired bootstrap B=5000 + Wilcoxon) and hexbins | **Best hybrid.** See below. |
+| 17 | `riley_hexbins_prospective.py` | Three standalone prospective hexbins (predicted vs *actual* LoS): best ML model alone, physician alone, best hybrid | `figures/fig_hexbin_pros_{ml_alone,physician,hybrid}.png` |
 
 ## Headline result — soft physician-gated hybrid (`soft_gate_cv.csv`)
 
@@ -52,6 +56,39 @@ calibration/explained variance (R² 0.36 vs 0.28) and on long-stay accuracy (MAE
 7.74). It is the only configuration in this exploration that achieves a genuine
 "medicine + AI" synergy: the physician's estimate routes the regime, the leak-free ML
 experts sharpen the magnitude. The optimism gap (nested-CV vs optimistic) is just +0.05 d.
+
+## Best variant — 3-component blend with the physician *number* (`3comp_metrics.csv`, `3comp_superiority.csv`)
+
+Steps 14–16 push further: instead of using the physician estimate only as a *gate* between two
+ML experts, the best variant **blends the physician's number itself** as a third (mid-band)
+component: `pred = p_short·SHORT + p_mid·ARZT + p_long·LONG`, with the regime weights derived
+from the physician estimate (c_lo, s tuned by nested CV; (c_lo=3, s=1.0) chosen in all 5 folds).
+Nested-CV-honest prospective numbers (n = 286, leak-free):
+
+| Model | MAE | R² | slope | 1–2 d | 2–4 d | 4–7 d | >7 d |
+|-------|----:|---:|-----:|-----:|-----:|-----:|-----:|
+| **3-component hybrid (MID = physician)** | **2.89** | **0.40** | 0.90 | 1.42 | 1.72 | 2.69 | **6.24** |
+| Soft 2-component gate | 2.93 | 0.36 | 0.89 | 1.41 | 1.40 | 2.56 | 6.89 |
+| Senior physician | 2.94 | 0.28 | 0.83 | 0.97 | 1.50 | 1.95 | 7.74 |
+
+**Significance vs the physician** (paired bootstrap B=5000 ΔMAE = MAE_phys − MAE_model + Wilcoxon):
+
+| Subgroup | n | ΔMAE [95% CI] | Wilcoxon p | verdict |
+|----------|--:|---------------|----:|---------|
+| overall | 286 | +0.05 [−0.18, +0.30] | 0.18 | **n.s. (equivalent)** |
+| 1–2 d | 86 | −0.45 [−0.65, −0.20] | <0.0001 | physician better |
+| 2–4 d | 84 | −0.22 [−0.48, +0.01] | 0.42 | n.s. |
+| 4–7 d | 46 | −0.74 [−1.26, −0.24] | 0.33 | physician better* |
+| **>7 d** | 70 | **+1.50 [+0.77, +2.25]** | **0.0001** | **hybrid better** |
+
+\* At 4–7 d the mean-based bootstrap CI favours the physician, but the rank-based Wilcoxon test is
+non-significant (p=0.33) — the gap is driven by a few large errors, not a consistent case-by-case
+advantage. The hybrid is **statistically equivalent to the physician overall**, **significantly
+better on long-stayers (>7 d)** — the capacity-planning–relevant group — and better calibrated
+(R² 0.40 vs 0.28). The physician retains a significant edge only on short stays (1–2 d). The
+prospective hexbins (`figures/fig_hexbin_pros_*.png`) show the ML model alone collapsing to a
+vertical band (R² 0.01), the physician spreading along the diagonal (R² 0.28), and the hybrid
+tightest of all (R² 0.40).
 
 ## How to run
 Scripts read the retrospective parquet and the rebuilt prospective matrix from

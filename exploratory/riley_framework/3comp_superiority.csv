@@ -1,0 +1,6 @@
+subgroup;n;MAE_phys;MAE_model;dMAE;CI_low;CI_high;wilcoxon_p;verdict
+overall;286;2.94;2.89;0.047;-0.183;0.3;0.1762;n.s.
+1-2 d;86;0.97;1.42;-0.448;-0.646;-0.202;0.0;physician better
+2-4 d;84;1.5;1.72;-0.222;-0.484;0.009;0.4195;n.s.
+4-7 d;46;1.95;2.69;-0.739;-1.258;-0.245;0.3341;physician better
+>7 d;70;7.74;6.24;1.496;0.77;2.246;0.0001;model better

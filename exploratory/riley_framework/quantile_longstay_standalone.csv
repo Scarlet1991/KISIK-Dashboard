@@ -1,0 +1,7 @@
+approach;q;MAE;R2;slope;bias_gt7;MAE_gt7;cov_gt7;MAE_1-2;MAE_2-4;MAE_4-7;MAE_>7
+Single log1p-ExtraTrees (long expert form);-;10.016;-1.792;1.122;0.13;5.72;0.586;12.62;11.39;9.17;5.72
+Standalone quantile (full cohort);0.5;3.718;-0.122;1.391;-11.05;11.05;0.0;1.17;0.99;2.31;11.05
+Standalone quantile (full cohort);0.7;3.663;0.048;0.805;-8.68;8.95;0.086;2.2;1.78;1.79;8.95
+Standalone quantile (full cohort);0.8;4.088;0.04;0.602;-7.34;8.2;0.186;3.12;2.75;2.09;8.2
+Standalone quantile (full cohort);0.9;6.3;-0.401;0.38;-3.43;7.34;0.371;6.54;6.05;4.74;7.34
+Senior physician;-;2.94;0.276;0.83;-5.44;7.74;0.214;0.97;1.5;1.95;7.74

@@ -1,0 +1,6 @@
+approach;tuned_for;pick;MAE;R2;slope;MAE_gt7;MAE_1-2;MAE_2-4;MAE_4-7;MAE_>7
+Soft gate 2-comp (current);MAE;c=7,s=1;2.933;0.358;0.908;6.89;1.41;1.4;2.56;6.89
+Soft 3-comp, MID=physician;MAE;c_lo=3,s=1.0;2.893;0.397;0.901;6.24;1.42;1.72;2.69;6.24
+Soft 3-comp, MID=mid-expert(3-7);MAE;c_lo=5,s=1.0;2.918;0.381;0.925;6.6;1.53;1.51;2.48;6.6
+Soft 3-comp, MID=physician;4-7 MAE;c_lo=5,s=2.0;3.1;0.4;1.04;6.2;2.16;2.06;2.03;6.2
+Senior physician;-;-;2.94;0.276;0.83;7.74;0.97;1.5;1.95;7.74

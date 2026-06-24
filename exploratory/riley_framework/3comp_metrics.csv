@@ -1,0 +1,4 @@
+model;MAE;RMSE;R2;slope;bias;MAE_gt7;MAE_1-2 d;MAE_2-4 d;MAE_4-7 d;MAE_>7 d
+3-comp hybrid (nested-CV OOF);2.893;4.963;0.397;0.901;-0.105;6.24;1.42;1.72;2.69;6.24
+3-comp hybrid (frozen c_lo=3,s=1.0);2.893;4.963;0.397;0.901;-0.105;6.24;1.42;1.72;2.69;6.24
+Senior physician;2.94;5.435;0.276;0.83;-1.1;7.74;0.97;1.5;1.95;7.74
