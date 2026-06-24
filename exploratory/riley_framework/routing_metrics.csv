@@ -1,0 +1,7 @@
+approach;MAE;RMSE;R2;calib_slope;bias;bias_gt7;MAE_gt7
+Single Tweedie+recal (full cohort);3.752;6.193;0.061;1.004;-1.027;-8.948;9.069
+Short-expert only (<=7d-trained), all cases;3.853;7.086;-0.23;3.086;-3.179;-11.992;11.992
+Routing soft (mixture);4.162;6.189;0.062;0.817;0.356;-7.322;7.618
+Routing hard (thr 0.5);3.938;7.149;-0.252;0.281;-2.273;-9.74;11.04
+Routing hard (thr 0.3);5.71;8.187;-0.642;0.238;2.126;-3.2;8.326
+Senior physician;2.94;5.435;0.276;0.83;-1.1;-5.435;7.74

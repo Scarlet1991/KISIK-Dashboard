@@ -1,0 +1,17 @@
+gate;tool;K;MAE;R2;slope;bias;MAE_gt7
+ML-gate (soft);ExtraTrees;5;3.887;0.075;0.966;-0.445;8.389
+Physician-gate (hard);ExtraTrees;5;3.27;0.309;0.77;-0.088;6.48
+ML-gate (soft);ExtraTrees;7;4.081;0.059;0.788;0.161;7.767
+Physician-gate (hard);ExtraTrees;7;3.316;0.241;0.695;-0.587;7.599
+ML-gate (soft);ExtraTrees;10;4.149;0.061;0.763;0.348;7.687
+Physician-gate (hard);ExtraTrees;10;3.483;0.145;0.626;-0.894;8.816
+ML-gate (soft);ExtraTrees;14;4.329;0.04;0.659;0.765;7.414
+Physician-gate (hard);ExtraTrees;14;3.773;-0.055;0.476;-0.951;10.1
+ML-gate (soft);Tweedie;5;3.944;0.084;1.033;-0.345;8.351
+Physician-gate (hard);Tweedie;5;3.273;0.292;0.731;0.088;6.169
+ML-gate (soft);Tweedie;7;4.16;0.063;0.823;0.362;7.604
+Physician-gate (hard);Tweedie;7;3.376;0.211;0.65;-0.383;7.688
+ML-gate (soft);Tweedie;10;4.152;0.073;0.828;0.373;7.639
+Physician-gate (hard);Tweedie;10;3.493;0.14;0.611;-0.828;8.906
+ML-gate (soft);Tweedie;14;4.458;0.037;0.679;1.027;7.264
+Physician-gate (hard);Tweedie;14;3.831;-0.065;0.463;-0.674;10.109

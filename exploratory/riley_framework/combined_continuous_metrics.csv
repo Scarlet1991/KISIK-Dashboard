@@ -1,0 +1,5 @@
+set;model;MAE;R2;calib_slope;bias;bias_gt7
+prosp;Tweedie raw (prospective);3.663;-0.032;0.814;-1.932;-9.86
+prosp;Tweedie + recalibration (prospective);3.816;0.04;0.847;-0.903;-8.87
+holdout;Tweedie raw (holdout);3.43;0.141;0.842;-0.866;-8.57
+holdout;Tweedie + recalibration (holdout);3.766;0.16;0.876;0.133;-7.656

@@ -1,0 +1,9 @@
+set;model;MAE;R2;calib_slope;calib_int;bias_all;bias_gt7;MAE_gt7
+holdout;ET log1p naive (hold-out);3.288;0.158;1.301;0.12;-1.375;-9.453;9.574
+prospective;ET log1p naive (prospective);3.723;-0.104;1.382;1.226;-2.501;-10.884;10.884
+holdout;ET smearing (hold-out);3.613;0.211;1.038;-0.143;-0.066;-7.681;8.208
+prospective;ET smearing (prospective);3.745;0.004;1.103;0.947;-1.404;-9.643;9.661
+holdout;Tweedie (hold-out);3.43;0.141;0.842;1.606;-0.866;-8.57;9.106
+prospective;Tweedie (prospective);3.663;-0.032;0.814;2.658;-1.932;-9.86;9.966
+holdout;ET recalibrated (hold-out);3.64;0.211;1.013;-0.091;0.02;-7.538;8.122
+prospective;ET recalibrated (prospective);3.752;0.008;1.076;1.001;-1.344;-9.565;9.592

@@ -66,6 +66,21 @@ and adds **Tweedie**.
   manuscript's conclusions are therefore **conservative** under `is_open = 0`. Figures:
   `fig_old_approach_retro_vs_pros.png`, `fig_mae_by_isopen.png`, `fig_vergleich_no_isopen_mit_tweedie.png`.
 
+## 5 · `riley_framework/` — Riley/Collins toolkit → soft physician-gated hybrid
+Applies the prediction-model framework of Riley, Collins et al. (recalibration, Duan smearing,
+honest log1p back-transform, bootstrap instability, long-stay-as-estimand) to the leak-free
+no_isopen cohort (n = 286), then builds a mixture-of-experts hybrid. See the folder's own
+`README.md` for the full 13-step finding chain.
+
+- **Headline:** the continuous ML model has essentially no prognostic information on prospective
+  long-stayers (bootstrap SD is *low* — confident regression to the mean), and the senior physician
+  dominates it both as a continuous predictor (MAE 2.94 vs 3.82, R² 0.28 vs 0.04) and as a long-stay
+  flag (AUROC 0.91 vs 0.73). The decisive lever is therefore the **gate, not the ML tool**
+  (ExtraTrees ≈ Tweedie). A **soft physician gate** `w = σ((arzt − c)/s)` with (c=7, s=1.0) tuned by
+  **nested CV** matches the physician overall (MAE 2.99 vs 2.94, n.s.) while beating it on calibration
+  (R² 0.36 vs 0.28) and long-stay accuracy (MAE>7 6.86 vs 7.74) — the strongest medicine-plus-AI
+  synergy in the project. Figures: `figures/fig_soft_gate_cv.png`, `figures/fig_architecture.png`.
+
 ---
 
 ## Reproducibility

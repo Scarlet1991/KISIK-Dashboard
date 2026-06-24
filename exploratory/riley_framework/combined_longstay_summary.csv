@@ -1,0 +1,3 @@
+target;prev_prosp;AUROC_prosp;Brier_prosp;thr_star;exp_count;obs_count
+LOS>=7d;0.245;0.725;0.164;0.355;80.4;70
+LOS>=10d;0.161;0.681;0.13;0.294;59.5;46

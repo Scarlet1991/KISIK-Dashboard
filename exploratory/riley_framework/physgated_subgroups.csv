@@ -1,0 +1,7 @@
+approach;1-2 d;2-4 d;4-7 d;>7 d
+Senior physician (alone);0.97;1.5;1.95;7.74
+Single Tweedie+recal (full);2.47;1.88;1.49;9.07
+ML-gated routing soft;3.84;3.01;1.61;7.62
+Physician-gated >=7 (experts);1.39;1.43;4.05;7.68
+Physician-gated >=10 (experts);1.09;1.17;3.19;8.88
+ML-short + physician-long (>=7);1.29;1.1;2.66;8.51

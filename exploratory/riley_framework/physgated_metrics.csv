@@ -1,0 +1,7 @@
+approach;MAE;RMSE;R2;calib_slope;bias;MAE_gt7
+Senior physician (alone);2.94;5.435;0.276;0.83;-1.1;7.74
+Single Tweedie+recal (full);3.752;6.193;0.061;1.004;-1.027;9.069
+ML-gated routing soft;4.162;6.189;0.062;0.817;0.356;7.618
+Physician-gated >=7 (experts);3.371;5.674;0.211;0.651;-0.4;7.679
+Physician-gated >=10 (experts);3.358;5.861;0.159;0.731;-1.548;8.875
+ML-short + physician-long (>=7);3.221;5.754;0.189;0.761;-1.319;8.511

@@ -1,0 +1,7 @@
+approach;1-2 d;2-4 d;4-7 d;>7 d
+Single Tweedie+recal (full cohort);2.47;1.88;1.49;9.07
+Short-expert only (<=7d-trained), all cases;0.95;0.63;2.79;11.99
+Routing soft (mixture);3.84;3.01;1.61;7.62
+Routing hard (thr 0.5);1.37;1.09;3.13;11.04
+Routing hard (thr 0.3);4.57;4.72;5.66;8.33
+Senior physician;0.97;1.5;1.95;7.74

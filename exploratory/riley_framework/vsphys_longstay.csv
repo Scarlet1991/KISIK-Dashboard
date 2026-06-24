@@ -1,0 +1,5 @@
+target;estimator;op;AUROC;flagged;sens;spec;PPV;NPV;Brier;exp_count;obs_count
+>=7d;Model P(LOS>=7);thr=0.3;0.725;120;0.686;0.667;0.4;0.867;0.164;80.4;70
+>=7d;Physician (est>=7);arzt>=7;0.906;62;0.629;0.917;0.71;0.884;;62.0;70
+>=10d;Model P(LOS>=10);thr=0.3;0.681;64;0.478;0.825;0.344;0.892;0.13;59.5;46
+>=10d;Physician (est>=10);arzt>=10;0.891;36;0.457;0.938;0.583;0.9;;36.0;46
