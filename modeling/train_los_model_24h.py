@@ -116,22 +116,16 @@ def regression_metrics_markus_train(y_true, y_pred):
 
 
 def mapped_feature_candidate_markus_train(feature_name, columns):
-    prefix_map = {
-        "zugang24_": "zugang_",
-        "proc24_": "proc_",
-        "lab24_": "lab_",
-        "vital24_": "vital_",
-        "med24_": "med_",
-    }
+    # Reviewer-Fix: Das Fallback-Mapping 24h-Feature -> Full-Stay-Feature
+    # (z. B. lab24_ -> lab_) wurde ENTFERNT. Ein als 24h benanntes Feature darf
+    # nicht still zu einem Full-Stay-Aggregat werden (Leak-Gefahr). Fehlt ein
+    # echtes 24h-Feature, wird es NICHT ersetzt (siehe strikte Pruefung unten).
+    prefix_map = {}  # bewusst leer (kein Prefix-Fallback mehr)
     for old_prefix, new_prefix in prefix_map.items():
         if feature_name.startswith(old_prefix):
             candidate = new_prefix + feature_name[len(old_prefix):]
             if candidate in columns:
                 return candidate, f"{old_prefix} -> {new_prefix}"
-    if feature_name.endswith("_24h"):
-        candidate = feature_name[:-4]
-        if candidate in columns:
-            return candidate, "Suffix _24h entfernt"
     return None, None
 
 

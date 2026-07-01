@@ -99,7 +99,10 @@ stays = con.execute(f"""
 """).df()
 stays["planbegin"] = pd.to_datetime(stays["planbegin"], errors="coerce")
 stays["planend"]   = pd.to_datetime(stays["planend"],   errors="coerce")
-stays["window_end"] = stays["planbegin"] + pd.Timedelta(hours=24)
+# Reviewer-Fix: 24h-Fenster auf das tatsaechliche ICU-Ende deckeln, damit bei kurzen
+# Aufenthalten (< 24h) keine Daten nach ICU-Ende einfliessen. min(planend, planbegin + 24h).
+_w24 = stays["planbegin"] + pd.Timedelta(hours=24)
+stays["window_end"] = _w24.where(stays["planend"].isna() | (_w24 <= stays["planend"]), stays["planend"])
 print(f"  {len(stays):,} Stays geladen")
 
 con.register("stays_df", stays[["stay_id", "fallid", "planbegin", "window_end"]])
@@ -198,8 +201,18 @@ proc24_long = con.execute(proc_sql).df()
 proc24_wide = presence_to_wide_24h(proc24_long, "proc24", TOP_N_FEATURES["proc"])
 
 # Gesamtzahl Prozeduren in ersten 24h
-proc24_count = (proc24_long.groupby("stay_id")["feature_name"].count()
-                .reset_index(name="proc24_anzahl_gesamt"))
+# Reviewer-Fix #3: echte Prozedur-EREIGNISzahl (nicht Anzahl unterschiedlicher OPS).
+# Die binaeren Presence-Spalten oben nutzen weiterhin DISTINCT; der Count kommt aus einer
+# separaten Query OHNE DISTINCT, damit proc24_anzahl_gesamt wirklich Ereignisse zaehlt.
+proc24_count = con.execute(f"""
+    SELECT s.stay_id, COUNT(*) AS proc24_anzahl_gesamt
+    FROM read_csv_auto('{_path(FILES["procedures"])}',
+         delim=';', header=true, all_varchar=true, ignore_errors=true) p
+    JOIN stays24 s ON p.fallid = s.fallid
+    WHERE p.ops IS NOT NULL
+      AND TRY_CAST(p.durchf_datum AS TIMESTAMP) BETWEEN s.planbegin AND s.window_end
+    GROUP BY s.stay_id
+""").df()
 print(f"  {len(proc24_long):,} Prozedur-Eintraege -> {max(len(proc24_wide.columns)-1, 0)} binaere Spalten")
 
 

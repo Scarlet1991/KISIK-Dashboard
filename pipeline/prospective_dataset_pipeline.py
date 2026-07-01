@@ -442,10 +442,15 @@ def pros_load_case_data(day_folders: List[Tuple[datetime, Path]]) -> pd.DataFram
 
 
 def pros_register_stays(con: duckdb.DuckDBPyConnection, stays: pd.DataFrame) -> None:
-    con.register(
-        "pros_stays_df",
-        stays[["stay_id", PROS_COLS["case_id"], PROS_COLS["icu_start"], PROS_COLS["icu_end"]]].copy(),
-    )
+    _st = stays[["stay_id", PROS_COLS["case_id"], PROS_COLS["icu_start"], PROS_COLS["icu_end"]]].copy()
+    # Reviewer-Fix #4: echtes 24h-Fenster statt ganzem Aufenthalt.
+    # window_end = min(icu_start + 24h, icu_end). Die Feature-Queries filtern auf s.window_end
+    # (nicht mehr auf s.icu_end), damit prospektive *24_-Features wirklich nur die ersten 24h nutzen.
+    _s = pd.to_datetime(_st[PROS_COLS["icu_start"]], errors="coerce")
+    _e = pd.to_datetime(_st[PROS_COLS["icu_end"]], errors="coerce")
+    _w24 = _s + pd.Timedelta(hours=24)
+    _st["window_end"] = _w24.where(_e.isna() | (_w24 <= _e), _e)
+    con.register("pros_stays_df", _st)
     con.execute("CREATE OR REPLACE TEMP TABLE pros_stays AS SELECT * FROM pros_stays_df")
 
 
@@ -716,7 +721,7 @@ def pros_query_vitals(con: duckdb.DuckDBPyConnection, source_arg: Optional[str])
             FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) v
             JOIN pros_stays s
               ON CAST(v.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         )
         SELECT
             stay_id,
@@ -749,7 +754,7 @@ def pros_query_scores(con: duckdb.DuckDBPyConnection, source_arg: Optional[str])
             FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) sc
             JOIN pros_stays s
               ON CAST(sc.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         )
         SELECT
             stay_id,
@@ -806,7 +811,7 @@ def pros_query_procedures(con: duckdb.DuckDBPyConnection, source_arg: Optional[s
         FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) p
         JOIN pros_stays s
           ON CAST(p.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-         AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+         AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         WHERE p.{PROS_COLS['proc_code']} IS NOT NULL
     """
     return con.execute(sql).fetch_df()
@@ -825,7 +830,7 @@ def pros_query_access(con: duckdb.DuckDBPyConnection, source_arg: Optional[str])
             FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) a
             JOIN pros_stays s
               ON CAST(a.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         )
         SELECT stay_id, feature_name
         FROM access_data
@@ -860,7 +865,7 @@ def pros_query_labs(con: duckdb.DuckDBPyConnection, source_arg: Optional[str]) -
             FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) l
             JOIN pros_stays s
               ON CAST(l.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         )
         SELECT
             stay_id,
@@ -1109,7 +1114,7 @@ def pros_query_access(con: duckdb.DuckDBPyConnection, source_arg: Optional[str])
             FROM read_csv_auto({source_arg}, delim=';', header=true, all_varchar=true, ignore_errors=true, union_by_name=true, filename=true) a
             JOIN pros_stays s
               ON CAST(a.{PROS_COLS['case_id']} AS VARCHAR) = CAST(s.{PROS_COLS['case_id']} AS VARCHAR)
-             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.{PROS_COLS['icu_end']}
+             AND {ts_expr} BETWEEN s.{PROS_COLS['icu_start']} AND s.window_end
         )
         SELECT stay_id, feature_name
         FROM access_data
