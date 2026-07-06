@@ -76,10 +76,20 @@ no_isopen cohort (n = 286), then builds a mixture-of-experts hybrid. See the fol
   long-stayers (bootstrap SD is *low* — confident regression to the mean), and the senior physician
   dominates it both as a continuous predictor (MAE 2.94 vs 3.82, R² 0.28 vs 0.04) and as a long-stay
   flag (AUROC 0.91 vs 0.73). The decisive lever is therefore the **gate, not the ML tool**
-  (ExtraTrees ≈ Tweedie). A **soft physician gate** `w = σ((arzt − c)/s)` with (c=7, s=1.0) tuned by
-  **nested CV** matches the physician overall (MAE 2.99 vs 2.94, n.s.) while beating it on calibration
-  (R² 0.36 vs 0.28) and long-stay accuracy (MAE>7 6.86 vs 7.74) — the strongest medicine-plus-AI
-  synergy in the project. Figures: `figures/fig_soft_gate_cv.png`, `figures/fig_architecture.png`.
+  (ExtraTrees ≈ Tweedie). Figures: `figures/fig_soft_gate_cv.png`, `figures/fig_architecture.png`.
+- **Best standalone ML (`riley_scores_consistent.py`):** the strongest *solo* model adds genuine
+  24-h severity scores (SAPS II + TISS-28) to the deployment-aware regressor → C-index 0.602 →
+  **0.680**, Spearman 0.30 → **0.52**, MAE 3.75 → **3.40 d**. Still below the physician (0.766); the
+  leak-free retrospective *ceiling* is only ≈ 0.71 (`riley_clean_ceiling.py`). Structured 24-h data
+  does not beat the clinician's gestalt — every earlier "beats the physician" figure was a leak.
+- **Best hybrid (manuscript choice, `riley_hybrid_longonly.py`):** the parsimonious **long-only**
+  physician gate `pred = (1−p)·â + p·L̂(x)`, `p = σ((â−7)/1)` — honest OOF prospective **MAE 2.86,
+  R² 0.40**, non-inferior overall (ΔMAE +0.08, p = 0.54) and **significantly better on long-stayers
+  > 7 d** (MAE 6.18 vs 7.74, ΔMAE +1.56 [0.84, 2.31], p < 0.001). Adding the 24-h scores to its long
+  expert brings its ranking up to the physician's (C-index 0.766). Caveat: the long expert is
+  effectively a **constant** — the gain is a bias-correction of the physician's long-stay
+  under-estimation by a population anchor, not an ML discrimination signal. See the folder README for
+  the full step-by-step chain and significance tables.
 
 ---
 

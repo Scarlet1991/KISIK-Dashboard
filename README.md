@@ -137,6 +137,8 @@ are excluded.
 | Prospective vs. senior physician (n = 193, completed stays) | First-24h features **reconstructed from raw prospective data** (86 % available; median per-stay completeness 77 %). Only **completed stays** (`is_open = 0`, LOS > 1 day) in the three AIN units are used. All 193 senior-matched stays fall in these units. **Physician wins overall** (MAE 2.01 vs 2.64 d; R² 0.22 vs 0.07 for Extra Trees). Extra Trees is the only model with positive prospective R² (0.07); Ridge is unstable under distribution shift (R² −22). |
 | Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). Care-unit type is no longer informative in this single-department cohort. |
 | Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
+| Best **standalone ML** (exploratory) | The strongest solo model = deployment-aware 24 h features **plus genuine 24 h severity scores** (SAPS II + TISS-28): ranking C-index 0.602 → **0.680**, Spearman 0.30 → **0.52**, MAE 3.75 → **3.40 d**. Still below the physician (C-index 0.766); the leak-free retrospective *ceiling* (every legitimate 24 h feature) is only ≈ 0.71. Structured 24 h data does not beat the clinician's gestalt. `exploratory/riley_framework/riley_scores_consistent.py`, `riley_clean_ceiling.py`. |
+| Best **hybrid** (exploratory, manuscript variant) | Parsimonious **long-only physician gate** `pred = (1−p)·â + p·L̂(x)`, `p = σ((â−7)/1)`: honest OOF prospective **MAE 2.86, R² 0.40**, **non-inferior overall** (ΔMAE +0.08, p = 0.54) and **significantly better on long-stayers > 7 d** (6.18 vs 7.74 d; ΔMAE +1.56 [0.84, 2.31], p < 0.001 — the capacity-relevant group). Adding the 24 h scores brings its ranking up to the physician's (C-index 0.766). The strongest medicine-plus-AI synergy in the project. `exploratory/riley_framework/riley_hybrid_longonly.py`, `riley_hybrid_scores.py`. |
 
 ### `is_open` flag (prospective data)
 
@@ -226,6 +228,12 @@ manuscript (`reporting/KISIK_Frontiers_Manuskript_v2.docx`); the folders `modeli
 - `exploratory/kisik_alternatives/` — **Tweedie / Gamma / hazard / quantile-P80** objectives on the AIN cohort.
 - `exploratory/routing/` — gated-ensemble **model routing** experiment and the **physician-as-regime-detector** analysis.
 - `exploratory/no_isopen/` — sensitivity **without the `is_open` correction** (open/censored stays included; with Tweedie).
+- `exploratory/riley_framework/` — Riley/Collins prediction-model toolkit → the **best standalone
+  model** (deployment-aware 24 h features + genuine 24 h severity scores, C-index 0.680, still below
+  the physician's 0.766) and the **best hybrid** (parsimonious long-only physician gate: overall
+  non-inferior to the physician at MAE 2.86 / R² 0.40, significantly better on long-stayers > 7 d).
+  Full step-by-step finding chain, significance tables, and the "the ML long expert is really a
+  population constant" caveat in [`exploratory/riley_framework/README.md`](exploratory/riley_framework/README.md).
 
 See [`exploratory/README.md`](exploratory/README.md) for findings and reproducibility. Only
 aggregate outputs are included there (no patient-level data).

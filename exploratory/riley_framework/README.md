@@ -39,6 +39,16 @@ beats — or at least matches — the senior physician?
 | 16 | `riley_3comp_full.py` | Full evaluation of the best variant — 3-component blend, MID = physician number, nested-CV — with significance testing vs the physician (paired bootstrap B=5000 + Wilcoxon) and hexbins | **Best hybrid.** See below. |
 | 17 | `riley_hexbins_prospective.py` | Three standalone prospective hexbins (predicted vs *actual* LoS): best ML model alone, physician alone, best hybrid | `figures/fig_hexbin_pros_{ml_alone,physician,hybrid}.png` |
 
+### Later steps — best standalone model & the manuscript's hybrid choice
+
+| # | Script | What it tests | Result |
+|---|--------|---------------|--------|
+| 18 | `riley_clean_ceiling.py` | **Leak-free retrospective information ceiling** — every legitimate 24-h feature (all `lab24_/vital24_/proc24_/zugang24_/diag_` + demographics + genuine 24-h SAPS II / TISS-28 / SOFA), only true leaks removed (8-98f family, whole-stay aggregates, leaky window-scores) | The best leak-free retro model reaches only **C-index ≈ 0.71** (MAE 3.21) — still **below the physician's prospective 0.766**. No clean structured-data model beats the clinician; the earlier 0.83–0.84 "above-physician" figures were all leaks. |
+| 19 | `riley_scores_consistent.py` | **Best deployable standalone** — add *train/serve-consistent* genuine 24-h severity scores (SAPS II + TISS-28 within `[planbegin, +24 h)` retro; `score_all.csv` prospectively) to the deployment-aware model | **Current best standalone ML.** Scores lift it from C-index 0.602 → **0.680**, Spearman 0.30 → **0.52**, extreme-AUROC (≤3 vs >10 d) 0.69 → **0.86**, MAE 3.75 → **3.40 d** — the single real feature lever — but it still trails the physician (0.766 / 0.72). |
+| 20 | `riley_hybrid_longonly.py`, `riley_best_hybrid_and_fio2.py` | The **parsimonious long-only** hybrid selected for the manuscript: `pred = (1−p)·â + p·L̂(x)`, `p = σ((â−7)/1)` — one ML expert (retro > 7 d), one threshold. FiO₂ tested as a long-expert feature | **Manuscript hybrid.** Honest OOF prospective **MAE 2.86, R² 0.40, slope 0.87**; > 7 d 6.18 vs physician 7.74 (**ΔMAE +1.56 [0.84, 2.31], p < 0.001**); overall non-inferior (+0.08 [−0.15, +0.32], p = 0.54). Chosen over the 3-component (equivalent overall but degrades very-short stays). FiO₂ adds nothing (poorly populated, no honest gain) and is dropped. |
+| 21 | `riley_hybrid_scores.py` | Add the genuine 24-h scores to the hybrid's **long** expert | Hybrid-long with scores: **MAE 2.88, C-index 0.766 (= physician)**, > 7 d ΔMAE +1.43 [0.67, 2.16] p = 0.0002; overall still n.s. (p = 0.65). Scores must feed the *long* expert — a general score-ML hybrid is significantly *worse* on > 7 d (it compresses). |
+| 22 | (analysis in `riley_best_hybrid_and_fio2.py` / `riley_hybrid_longonly.py`) | Is the hybrid's long expert really "ML"? Replace L̂ with a fixed retro long-stay **mean / median** anchor | The long expert is effectively **constant** in the tail (prospective mean 14.1 d, SD 1.3; within-long ranking ≈ chance). A fixed population anchor reproduces the hybrid (MAE 2.84). **The hybrid's gain is a bias-correction of the physician's anchor by a population constant, not an ML discrimination signal** — the physician supplies discrimination, the constant supplies level. |
+
 ## Headline result — soft physician-gated hybrid (`soft_gate_cv.csv`)
 
 Nested-CV-honest numbers on the prospective cohort (n = 286, leak-free):
@@ -90,8 +100,66 @@ prospective hexbins (`figures/fig_hexbin_pros_*.png`) show the ML model alone co
 vertical band (R² 0.01), the physician spreading along the diagonal (R² 0.28), and the hybrid
 tightest of all (R² 0.40).
 
+## Current best standalone ML — genuine 24-h severity scores (`riley_scores_consistent.py`)
+
+The best *standalone* model (no physician input) is the deployment-aware 24-h Extra Trees
+regressor **augmented with train/serve-consistent 24-h severity scores** (SAPS II + TISS-28,
+computed within `[planbegin, +24 h)` retrospectively and taken from `score_all.csv`
+prospectively). Prospective cohort (n ≈ 276–286, leak-free):
+
+| Standalone model | C-index | Spearman | MAE | extreme-AUROC (≤3 vs >10 d) |
+|------------------|:------:|:-------:|:---:|:--------------------------:|
+| Deployment-aware 24-h (no scores) | 0.602 | 0.30 | 3.75 | 0.69 |
+| **+ genuine 24-h scores (best standalone)** | **0.680** | **0.52** | **3.40** | **0.86** |
+| Leak-free retro information ceiling (`riley_clean_ceiling.py`) | ~0.71 | — | 3.21 | — |
+| Senior physician | **0.766** | **0.72** | **2.94** | 0.96 |
+
+**Interpretation.** Adding the genuine 24-h scores is the single real feature lever — it roughly
+halves the ranking gap to the physician — but even the leak-free retrospective *ceiling* (every
+legitimate 24-h feature) lands at C-index ≈ 0.71, still short of the clinician's 0.766. Every
+earlier "standalone beats the physician" number (C-index 0.83–0.84) was a leak (the 8-98f
+intensive-care-days family, or window-aggregated score columns). **Structured 24-h data does not
+beat the clinician's gestalt** — which is exactly why the value is combinatorial (the hybrid), not
+standalone.
+
+## Manuscript decision — the parsimonious long-only physician-gated hybrid
+
+Among all explored variants (soft 2-component gate, 3-component physician-number blend, hard gate),
+the manuscript keeps the **single long-only** hybrid for parsimony and robustness:
+
+> `pred = (1 − p)·â + p·L̂(x)`,  `p = σ((â − 7) / 1)`  — one ML long-stay expert (retro > 7 d), one
+> physician-driven threshold.
+
+Honest OOF prospective numbers (n = 286, leak-free):
+
+| Model | MAE | R² | slope | > 7 d MAE | ΔMAE vs physician (overall) | ΔMAE vs physician (> 7 d) |
+|-------|----:|---:|-----:|-----:|-----|-----|
+| **Long-only hybrid (manuscript)** | **2.86** | **0.40** | 0.87 | **6.18** | +0.08 [−0.15, +0.32] p = 0.54 (non-inferior) | **+1.56 [0.84, 2.31] p < 0.001** |
+| 3-component (MID = physician) | 2.89 | 0.40 | 0.90 | 6.24 | +0.05 n.s. | +1.50 [0.77, 2.25] p = 0.0001 |
+| + genuine 24-h scores in long expert | 2.88 | — | — | — | +0.06 n.s. (p = 0.65); **C-index 0.766 = physician** | +1.43 [0.67, 2.16] p = 0.0002 |
+| Senior physician | 2.94 | 0.28 | 0.83 | 7.74 | — | — |
+
+Two honest caveats carried into the manuscript:
+
+- **The long expert is effectively a constant.** In the tail L̂ collapses to ≈ 14 d (SD 1.3;
+  within-long ranking ≈ chance), and replacing it with a fixed retro long-stay mean/median anchor
+  reproduces the hybrid (MAE 2.84). The hybrid's benefit is therefore a **bias-correction of the
+  physician's long-stay under-estimation by a population constant**, not an ML discrimination signal
+  — transparent and robust, but not "AI cleverness".
+- **Overall superiority is power-limited, not model-limited.** The overall ΔMAE (+0.08) would need
+  n ≈ 5,000+ for 80 % power; the effect lives in the > 7 d subgroup, which is already significant at
+  n = 70. The manuscript pre-specifies the **> 7 d long-stayers as the primary endpoint** (the
+  capacity-planning–relevant group) and overall non-inferiority as secondary.
+
 ## How to run
 Scripts read the retrospective parquet and the rebuilt prospective matrix from
 `Eigene Auswertung/canonical/…` (not in the repo — patient-level) and write outputs to
-`Eigene Auswertung/exploratory_riley/`. They are listed in dependency-free order; each is
-self-contained. Run from the project root with the KISIK Python environment.
+`Eigene Auswertung/exploratory_riley/`. The score-based steps (19, 21) additionally read the
+retrospective `kisik2/score.csv` and the prospective `…/OLD/Entlassdaten/score_all.csv` (genuine
+24-h SAPS II / TISS-28). They are listed in dependency-free order; each is self-contained. Run from
+the project root with the KISIK Python environment.
+
+Only aggregate metric CSVs are committed for steps 1–17; the later steps' outputs
+(`clean_ceiling*.csv`, `scores_consistent*.csv`, `hybrid_longonly.csv`, `best_hybrid.csv`,
+`fio2_test.csv`, `hybrid_scores*.csv`) live in the analysis workspace and are not committed
+(same data-safety policy).
