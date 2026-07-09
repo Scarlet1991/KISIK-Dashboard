@@ -31,6 +31,14 @@ flowchart TD
     P1 --> C["pipeline/prospective_dataset_pipeline.py"]
     C --> D3[("kisik2_prospektiv_ml_dataset.parquet")]
 
+    R1 --> MR["pipeline/build_24h_measurement_features.py<br/>parallel first-24h vitals+labs<br/>identical naming retro ↔ prospective"]
+    P1 --> MR
+    R1 --> POF["pipeline/build_perioperative_features.py<br/>OP duration · admission type · referring specialty"]
+    P1 --> POF
+    P1 --> AUD["pipeline/audit_input_capture.py<br/>capture-gap vs coding-gap"]
+    MR --> CMP
+    POF --> CMP
+
     D2 --> T["modeling/train_los_model_24h.py"]
     T --> M{{"Trained LoS model<br/>XGBoost · log1p target"}}
 
@@ -54,6 +62,9 @@ flowchart TD
 | 2 | `pipeline/add_24h_features.py` | base parquet + raw lab/vital/procedure/access CSVs | `kisik2_icu_ml_dataset_24h.parquet` | Recomputes labs/vitals/procedures/access **only within the first 24 h** (`planbegin → +24 h`) → `lab24_ / vital24_ / proc24_ / zugang24_` columns. This is the leakage-free dataset. |
 | 3 | `pipeline/check_leakage.py`, `check_features_24h.py` | 24h parquet + selected-feature list | console report | Confirms predictors use the 24 h window, not whole-stay summaries; verifies the selected features exist. |
 | 4 | `pipeline/prospective_dataset_pipeline.py` | daily OLD live snapshots | `kisik2_prospektiv_ml_dataset.parquet` | Loads each day's snapshot (`pros_load_day_csv`), detects still-open stays (`pros_detect_open_stay`), assembles the prospective dataset. Key `fallnr`, German dates. |
+| 4b | `pipeline/build_24h_measurement_features.py` | retro CSVs **and** OLD snapshots | `vital24_* / lab24_*` per cohort | Rebuilds first-24h **vitals + labs** identically on both sides (`sanitise()` naming), so the prospective matrix captures the same measurements as training. Closes the labs/vitals **capture gap** (see [next section](#retrospective--prospective-24-h-processing-parallel-build)). |
+| 4c | `pipeline/build_perioperative_features.py` | `op_*`, `fall_daten`, `aufenthalte_vorher_nachher` (retro + snapshots) | OP / admission / referral columns | Surgery / anaesthesia / bypass duration, planned duration, `admission_emergency`, one-hot referring specialty — the ~50-100 % available, previously-unused peri-admission context. |
+| 4d | `pipeline/audit_input_capture.py` | OLD snapshots | `capture_audit_*_prospective.csv` | Per-group 24h availability audit; separates the fixable **capture gap** (labs/vitals) from the intrinsic **coding gap** (procedures/diagnoses/scores). |
 | 5 | `modeling/train_los_model_24h.py` | 24h parquet + `los_selected_features_ain_24h_compact.csv` | trained model + hold-out metrics | Trains the LOS regressor (`TransformedTargetRegressor`, log1p target), patient-level train/test split, then applies it to the prospective dataset. |
 | 6 | `modeling/oberarzt_vs_ml_extended.py` | 24h + prospective parquet + senior-estimates CSV | head-to-head CSVs + figures | Trains RF / ExtraTrees / XGBoost / Ridge and benchmarks them against the **senior physician** (matched cohort, Wilcoxon, subgroups, calibration). |
 | 7 | `modeling/experiment_op_features.py` | 24h parquet + `op_an.csv` + `op_zeitintervalle.csv` | experiment CSV | Adds perioperative features (ASA, surgery/anaesthesia/bypass time) and tests an asymmetric loss for long-stayers. |
@@ -61,6 +72,50 @@ flowchart TD
 | 9 | `modeling/tweedie_hazard.py` | retro + prospective + OP + senior CSV | retro/prospective CSVs + figure | **Tweedie/Gamma** objectives and a **discrete-time hazard** model for the long-stay tail. |
 | 10 | `reporting/build_frontiers_tables.py`, `build_frontiers_manuscript.py` | result CSVs + figures | `.docx` tables + manuscript | Generates publication-ready Word tables and the manuscript draft. |
 | 11 | `dashboard/build_dashboard_data.py` → `build_dashboard_html.py` | 24h parquet + selected features | JSON → standalone HTML | Per-day ward view: predicted LOS per bed + **per-patient SHAP** (XGBoost `pred_contribs`). |
+
+---
+
+## Retrospective ↔ prospective 24 h processing (parallel build)
+
+The retrospective and prospective sides use **different keys and date formats** but must yield
+**identical feature columns** so a retro-trained model can score prospective cases 1:1:
+
+| | Retrospective | Prospective |
+|---|---|---|
+| Key | `fallid` | `fallnr` |
+| Dates | ISO `YYYY-MM-DD HH:MM:SS` | German `DD.MM.YYYY HH:MM:SS` |
+| Source shape | single CSVs | daily OLD snapshots (union; empty/header-less files skipped) |
+| `planbegin` | from the stay parquet | `min()` over snapshot `fall_aufenthalt.csv` |
+
+`pipeline/build_24h_measurement_features.py` builds the first-24h vitals + labs the same way on
+both sides (`sanitise()` → `vital24_<kurzbez>_<stat>` / `lab24_<beschreibung>_<stat>`,
+stats = first/mean/min/max/last/count).
+
+### Capture gap vs coding gap (why the prospective drop happens)
+
+An input-capture audit (`pipeline/audit_input_capture.py`) shows the prospective signal loss has
+**two distinct causes** — only one is fixable in the pipeline:
+
+- **Capture gap — FIXABLE (labs & vitals).** At 24 h the live snapshots already contain **~40 lab
+  analytes at ≥ 50 % coverage** (haemoglobin ~90 %) and **~18 vitals** (HF / AF / GCS / TEMP / ABP,
+  80–91 %), but the earlier prospective matrix wired in only ~6 labs + SpO₂. Rebuilding them (step 4b)
+  restores the ranking signal a standalone model needs.
+- **Coding gap — INTRINSIC (procedures, diagnoses, scores).** OPS/ICD codes are assigned later:
+  at 24 h the specific predictive codes appear in ≈ 1 case; **SOFA ≈ 3 %, SAPS ≈ 3 %, ASA 0 %** are
+  essentially undocumented prospectively. No pipeline change recovers these.
+- **Previously-unused, available context (step 4c).** OP duration / anaesthesia / planned duration
+  (~50 %), admission type Notfall/elektiv (~100 %), referring specialty HTC/UCH/NCH… (~51 %).
+
+### What the enrichment does — and does not — buy
+
+Wiring the available labs / vitals / OP context into the prospective matrix lifts the **standalone**
+ranking (prospective C-index 0.50 → 0.58; +OP a further small bump to 0.61) — but the standalone
+still trails the physician (C-index 0.77) and does **not** turn positive on out-of-sample R². In the
+**deployed KOMBI hybrid** the enrichment is essentially neutral (overall MAE 2.80 → 2.81, per-band
+unchanged): the steep physician gate means the ML expert only contributes in the long tail, where
+the recalibrated clinician estimate already dominates. The 4–7 d band the hybrid loses is an
+**informational ceiling**, not a missing-feature problem — no available source closes it. The senior
+estimate remains the load-bearing predictor.
 
 ---
 
@@ -158,6 +213,9 @@ pipeline/    data pipelines, 24h feature engineering & leakage diagnostics
   retrospective_dataset_pipeline.py   build retrospective ML dataset from raw CSVs (key: fallid)
   prospective_dataset_pipeline.py     build prospective ML dataset from daily OLD snapshots (key: fallnr)
   add_24h_features.py                 first-24h windowed features (leakage-free)
+  build_24h_measurement_features.py   parallel retro/prospective first-24h vitals+labs, identical naming (closes the capture gap)
+  build_perioperative_features.py     OP duration/anaesthesia/bypass + admission type + referring specialty (retro + prospective)
+  audit_input_capture.py              per-group 24h availability audit (capture gap vs coding gap)
   build_scores.py                     first-24h severity scores (SAPS II, TISS-28, SOFA) for both cohorts from score.csv + coverage report
   check_leakage.py                    leakage diagnostics
   check_features_24h.py               verify selected features exist
