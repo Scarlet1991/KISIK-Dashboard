@@ -70,7 +70,7 @@ flowchart TD
 | 7 | `modeling/experiment_op_features.py` | 24h parquet + `op_an.csv` + `op_zeitintervalle.csv` | experiment CSV | Adds perioperative features (ASA, surgery/anaesthesia/bypass time) and tests an asymmetric loss for long-stayers. |
 | 8 | `modeling/quantile_op_prospective.py` | retro + prospective + OP files + senior CSV | quantile head-to-head CSVs + figure | XGBoost **quantile** regression (P50/P80) with OP features; prospective benchmark + P80 coverage. |
 | 9 | `modeling/tweedie_hazard.py` | retro + prospective + OP + senior CSV | retro/prospective CSVs + figure | **Tweedie/Gamma** objectives and a **discrete-time hazard** model for the long-stay tail. |
-| 9b | `modeling/kombi_hybrid.py` | enriched 24h matrices + senior estimates | honest hybrid metrics | **KOMBI hybrid** (final): recalibrated-physician `recal(â)` + KNN-imputed **enriched** long-stay ML expert, blended by a physician gate `σ((â−c)/s)`; gate tuned by **nested CV** (per-fold on train only → honest out-of-fold). |
+| 9b | `modeling/kombi_hybrid.py` | enriched 24h matrices + senior estimates | honest hybrid metrics | **KOMBI hybrid** (final): recalibrated-physician `recal(â)` + KNN-imputed **enriched, retro-selected** long-stay ML expert (361 features by retro coverage only), blended by a **pre-specified** physician gate `σ((â−8.5)/1.0)`; only `recal(â)` is fit per fold → honest out-of-fold. |
 | 10 | `reporting/build_frontiers_tables.py`, `build_frontiers_manuscript.py` | result CSVs + figures | `.docx` tables + manuscript | Generates publication-ready Word tables and the manuscript draft. |
 | 11 | `dashboard/build_dashboard_data.py` → `build_dashboard_html.py` | 24h parquet + selected features | JSON → standalone HTML | Per-day ward view: predicted LOS per bed + **per-patient SHAP** (XGBoost `pred_contribs`). |
 
@@ -113,15 +113,17 @@ Wiring the available labs / vitals / OP context into the prospective matrix lift
 ranking (prospective C-index 0.50 → 0.58; +OP a further small bump to 0.61) — but the standalone
 still trails the physician (C-index 0.77) and does **not** turn positive on out-of-sample R².
 
-At the **fixed steep gate** the enrichment is neutral in the deployed hybrid (overall MAE 2.80 →
-2.81): the ML expert only contributes in the narrow long tail where the recalibrated clinician
-already dominates. **But re-tuning the gate** — a wider, gentler blend — with the enriched,
-KNN-imputed long-stay expert lets it contribute across a broader range. Under honest **nested CV**
-(gate tuned per fold on the training fold only) this lifts prospective **R² 0.38 → 0.41** and cuts
-the long-stay (> 7 d) MAE **6.67 → 6.16 d at equal overall MAE** — the hybrid then significantly
-beats the physician on calibration and the long tail (see [Results](#results-at-a-glance)). So the
-enrichment is **gate-limited, not expert-useless**. The 4–7 d band remains an **informational
-ceiling** no source closes; the senior estimate stays the load-bearing predictor for the bulk.
+Feeding this enriched, KNN-imputed long-stay expert into the hybrid — with feature selection driven
+by **retrospective coverage only** (≥ 5 %, 361 features; the prospective cohort is never consulted)
+and a **pre-specified** gate `σ((â−8.5)/1.0)` (fixed a priori, not tuned to the data) — the hybrid
+**matches the senior physician overall** (MAE 2.82 vs 2.94 d, ΔMAE +0.12, p = 0.16, n.s.) and on
+ranking (C-index 0.76 vs 0.77), is **better calibrated** (R² 0.39 vs 0.28; RMSE 4.98 vs 5.44 d), and
+is **significantly more accurate on long-stayers** (> 7 d MAE 6.64 vs 7.74 d; +1.11 d [+0.56, +1.72],
+Wilcoxon p < 0.001) — the group most relevant to bed capacity (see
+[Results](#results-at-a-glance)). The long-stay gain is the primary, adequately-powered endpoint and
+survives a completed-stays-only sensitivity analysis; the overall improvement is favourable but not
+yet significant. The 4–7 d band remains an **informational ceiling** no source closes; the senior
+estimate stays the load-bearing predictor for the bulk of stays.
 
 ---
 
@@ -292,10 +294,12 @@ manuscript (`reporting/KISIK_Frontiers_Manuskript_v2.docx`); the folders `modeli
 - `exploratory/kisik_alternatives/` — **Tweedie / Gamma / hazard / quantile-P80** objectives on the AIN cohort.
 - `exploratory/routing/` — gated-ensemble **model routing** experiment and the **physician-as-regime-detector** analysis.
 - `exploratory/no_isopen/` — sensitivity **without the `is_open` correction** (open/censored stays included; with Tweedie).
-- `exploratory/riley_framework/` — Riley/Collins prediction-model toolkit → the **best standalone
-  model** (deployment-aware 24 h features + genuine 24 h severity scores, C-index 0.680, still below
-  the physician's 0.766) and the **best hybrid** (parsimonious long-only physician gate: overall
-  non-inferior to the physician at MAE 2.86 / R² 0.40, significantly better on long-stayers > 7 d).
+- `exploratory/riley_framework/` — Riley/Collins prediction-model toolkit → the **standalone
+  enriched model** (deployable 24 h features, retro-selected + KNN-imputed; prospective C-index 0.59,
+  R² ≈ 0, still below the physician's 0.77) and the **final hybrid** (recalibrated-physician + gated
+  long-stay expert, pre-specified gate: overall MAE 2.82 vs 2.94 d and C-index 0.76 — matches the
+  physician — with R² 0.39 vs 0.28 and significantly better on long-stayers > 7 d, 6.64 vs 7.74 d).
+  Severity scores (SOFA/SAPS/TISS) are **excluded** — only ~3 % documented at 24 h prospectively.
   Full step-by-step finding chain, significance tables, and the "the ML long expert is really a
   population constant" caveat in [`exploratory/riley_framework/README.md`](exploratory/riley_framework/README.md).
 

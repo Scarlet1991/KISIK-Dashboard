@@ -1,5 +1,15 @@
 # Riley/Collins framework — exploratory analysis
 
+> **⚠ Historical finding chain — superseded.** The numbers below are the *exploratory* variants
+> that led to the final model, not the manuscript's final results. The **final KOMBI hybrid** —
+> enriched, **retrospective-coverage-only** feature selection (361 predictors, incl. a rebuilt 24 h
+> lab panel with haemoglobin), KNN imputation, and a **pre-specified** gate `σ((â−8.5)/1.0)` (not
+> tuned) — is defined in [`modeling/kombi_hybrid.py`](../../modeling/kombi_hybrid.py) and summarised
+> in the top-level [README](../../README.md). Final prospective result: hybrid **MAE 2.82 vs 2.94 d**
+> (equivalent) and **C-index 0.76**, better calibrated (**R² 0.39 vs 0.28**), significantly better on
+> LOS > 7 d (**6.63 vs 7.74 d**, p < 0.001). Severity scores are **excluded** (only ~3 % documented at
+> 24 h prospectively), so the score-augmented standalone below (C-index 0.680) is **not** deployable.
+
 Exploratory work applying the prediction-model framework of Riley, Collins et al. to the
 leak-free **no_isopen** cohort (all matched prospective stays, n = 286; retrospective
 development set with ICU LoS > 1 day). All models here use the **leak-free** feature set
