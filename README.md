@@ -70,6 +70,7 @@ flowchart TD
 | 7 | `modeling/experiment_op_features.py` | 24h parquet + `op_an.csv` + `op_zeitintervalle.csv` | experiment CSV | Adds perioperative features (ASA, surgery/anaesthesia/bypass time) and tests an asymmetric loss for long-stayers. |
 | 8 | `modeling/quantile_op_prospective.py` | retro + prospective + OP files + senior CSV | quantile head-to-head CSVs + figure | XGBoost **quantile** regression (P50/P80) with OP features; prospective benchmark + P80 coverage. |
 | 9 | `modeling/tweedie_hazard.py` | retro + prospective + OP + senior CSV | retro/prospective CSVs + figure | **Tweedie/Gamma** objectives and a **discrete-time hazard** model for the long-stay tail. |
+| 9b | `modeling/kombi_hybrid.py` | enriched 24h matrices + senior estimates | honest hybrid metrics | **KOMBI hybrid** (final): recalibrated-physician `recal(â)` + KNN-imputed **enriched** long-stay ML expert, blended by a physician gate `σ((â−c)/s)`; gate tuned by **nested CV** (per-fold on train only → honest out-of-fold). |
 | 10 | `reporting/build_frontiers_tables.py`, `build_frontiers_manuscript.py` | result CSVs + figures | `.docx` tables + manuscript | Generates publication-ready Word tables and the manuscript draft. |
 | 11 | `dashboard/build_dashboard_data.py` → `build_dashboard_html.py` | 24h parquet + selected features | JSON → standalone HTML | Per-day ward view: predicted LOS per bed + **per-patient SHAP** (XGBoost `pred_contribs`). |
 
@@ -110,12 +111,17 @@ An input-capture audit (`pipeline/audit_input_capture.py`) shows the prospective
 
 Wiring the available labs / vitals / OP context into the prospective matrix lifts the **standalone**
 ranking (prospective C-index 0.50 → 0.58; +OP a further small bump to 0.61) — but the standalone
-still trails the physician (C-index 0.77) and does **not** turn positive on out-of-sample R². In the
-**deployed KOMBI hybrid** the enrichment is essentially neutral (overall MAE 2.80 → 2.81, per-band
-unchanged): the steep physician gate means the ML expert only contributes in the long tail, where
-the recalibrated clinician estimate already dominates. The 4–7 d band the hybrid loses is an
-**informational ceiling**, not a missing-feature problem — no available source closes it. The senior
-estimate remains the load-bearing predictor.
+still trails the physician (C-index 0.77) and does **not** turn positive on out-of-sample R².
+
+At the **fixed steep gate** the enrichment is neutral in the deployed hybrid (overall MAE 2.80 →
+2.81): the ML expert only contributes in the narrow long tail where the recalibrated clinician
+already dominates. **But re-tuning the gate** — a wider, gentler blend — with the enriched,
+KNN-imputed long-stay expert lets it contribute across a broader range. Under honest **nested CV**
+(gate tuned per fold on the training fold only) this lifts prospective **R² 0.38 → 0.41** and cuts
+the long-stay (> 7 d) MAE **6.67 → 6.16 d at equal overall MAE** — the hybrid then significantly
+beats the physician on calibration and the long tail (see [Results](#results-at-a-glance)). So the
+enrichment is **gate-limited, not expert-useless**. The 4–7 d band remains an **informational
+ceiling** no source closes; the senior estimate stays the load-bearing predictor for the bulk.
 
 ---
 
@@ -193,7 +199,7 @@ are excluded.
 | Top predictors | Early intensive-care complex-treatment & monitoring procedure codes dominate (permutation importance). Care-unit type is no longer informative in this single-department cohort. |
 | Long-stayers (exploratory) | Tweedie (p≈1.3) & discrete-time hazard cut long-stay MAE ~10–12 % and reduce underestimation; quantile-P50 / hazard-median approach the physician on short stays. |
 | Best **standalone ML** (exploratory) | The strongest solo model = deployment-aware 24 h features **plus genuine 24 h severity scores** (SAPS II + TISS-28): ranking C-index 0.602 → **0.680**, Spearman 0.30 → **0.52**, MAE 3.75 → **3.40 d**. Still below the physician (C-index 0.766); the leak-free retrospective *ceiling* (every legitimate 24 h feature) is only ≈ 0.71. Structured 24 h data does not beat the clinician's gestalt. `exploratory/riley_framework/riley_scores_consistent.py`, `riley_clean_ceiling.py`. |
-| Best **hybrid** (exploratory, manuscript variant) | Parsimonious **long-only physician gate** `pred = (1−p)·â + p·L̂(x)`, `p = σ((â−7)/1)`: honest OOF prospective **MAE 2.86, R² 0.40**, **non-inferior overall** (ΔMAE +0.08, p = 0.54) and **significantly better on long-stayers > 7 d** (6.18 vs 7.74 d; ΔMAE +1.56 [0.84, 2.31], p < 0.001 — the capacity-relevant group). Adding the 24 h scores brings its ranking up to the physician's (C-index 0.766). The strongest medicine-plus-AI synergy in the project. `exploratory/riley_framework/riley_hybrid_longonly.py`, `riley_hybrid_scores.py`. |
+| Best **hybrid** (KOMBI, final) | Recalibrated-physician + long-stay expert, physician-gated `LOS = (1−p)·recal(â) + p·L̂(x)`, `p = σ((â−c)/s)`, with the **enriched, KNN-imputed** long-stay expert and the gate tuned by **nested CV** (per fold on train only; RMSE objective; honest out-of-fold, 20 seeds): **MAE 2.96, RMSE 4.93, R² 0.405, C-index 0.762, > 7 d MAE 6.16 d**. Statistically **equivalent to the senior physician on overall MAE (2.94 d) and ranking (C-index 0.766)**, but **significantly better on calibration (R² 0.276), RMSE (5.44 d) and long-stayers (7.74 d; ΔMAE > 7 d significant, Wilcoxon p < 0.001)** — the capacity-relevant group. The long-stay gain is robust (also significant for the simpler steep-gate canonical KOMBI). `modeling/kombi_hybrid.py`. |
 
 ### `is_open` flag (prospective data)
 
